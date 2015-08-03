@@ -9,6 +9,10 @@ module.exports = function(grunt) {
   require('load-grunt-tasks')(grunt);
 
     grunt.initConfig({
+      clean: {
+        dist: ['lib']
+      },
+
       env: {
         test: {
           NODE_ENV: 'test'
@@ -18,7 +22,7 @@ module.exports = function(grunt) {
       babel: {
         dist: {
           files: {
-            'dist/client.js': 'src/client.js'
+            'lib/client.js': 'src/client.js'
           }
         }
       },
@@ -27,7 +31,6 @@ module.exports = function(grunt) {
         options: {
           clearRequireCache: true,
           run: true,
-          spawn: false,
           require: [
             'tests/globals'
           ],
@@ -48,7 +51,7 @@ module.exports = function(grunt) {
             debounceDelay: 0,
             livereload: false
           },
-          files: ['**/*.js'],
+          files: ['tests/**/*.js'],
           tasks: ['mochaTest']
         }
       }
@@ -69,7 +72,7 @@ module.exports = function(grunt) {
       'watch'
     ]);
 
-    grunt.registerTask('compile', ['babel'])
+    grunt.registerTask('compile', ['clean:dist', 'babel'])
 
-    grunt.registerTask('test', ['env:test', 'mochaTest:all']);
+    grunt.registerTask('test', ['env:test', 'mochaTest']);
 }
