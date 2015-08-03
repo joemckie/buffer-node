@@ -13,7 +13,8 @@ global.app = {
 	client_secret: '2b20ad58d6c73d2e1674f4db7eae316c'
 };
 
-global.BufferClient = require('../client');
-global.http         = require('http');
+global.BufferClient = require('../src/client');
 global.chai         = require('chai');
+global.faker        = require('faker');
+global.http         = require('http');
 global.should       = chai.should();

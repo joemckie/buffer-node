@@ -7,7 +7,7 @@ describe('API: Profile', function () {
 		client = new BufferClient(app.access_key);
 	});
 
-	describe('Route: /profiles', function () {
+	describe('Method: getProfiles', function () {
 		before(function (done) {
 			client.getProfiles(function (err, res) {
 				error    = err;
@@ -26,9 +26,14 @@ describe('API: Profile', function () {
 			response.should.be.a('array');
 			done();
 		});
+
+		it('should associate the profiles with the client instance', function (done) {
+			should.exist(client.profiles);
+			done();
+		});
 	});
 
-	describe('Route: /profiles/:id', function () {
+	describe('Method: getProfileById', function () {
 		before(function (done) {
 			client.getProfileById('55b3d4a9474329e209b560ed', function (err, res) {
 				error    = err;
@@ -56,7 +61,7 @@ describe('API: Profile', function () {
 		});
 	});
 
-	describe('Route: /profiles/:id/schedules', function () {
+	describe('Method: getProfileSchedules', function () {
 		before(function (done) {
 			client.getProfileSchedules('55b3d4a9474329e209b560ed', function (err, res) {
 				error    = err;
