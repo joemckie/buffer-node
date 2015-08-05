@@ -8,9 +8,8 @@ if (!global._babelPolyfill) {
 }
 
 global.app = {
-	access_key: '1/0592f2761c2fdcfabfab6a901a43c771',
-	client_id: '55bbf88ea306363322810e24',
-	client_secret: '2b20ad58d6c73d2e1674f4db7eae316c'
+	access_key: '1/4345acc1e6c65935d3dc50ed4702a479',
+	profile_id: '55c2516e8e6e335428e74319'
 };
 
 global.BufferClient = require('../src/client');
