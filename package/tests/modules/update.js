@@ -20,10 +20,10 @@ describe('Module: Update', function () {
 				id: '1',
 				profile_ids: [app.profile_id],
 				text: faker.lorem.sentences()
-			}, client);
+			});
 
 			update.save(function (err, res) {
-				var queried_update = new Update(res.updates[0].id, client);
+				var queried_update = new Update(res.updates[0].id);
 				queried_update.promise.then(() => {
 					queried_update.id.should.equal(res.updates[0].id);
 
@@ -40,7 +40,7 @@ describe('Module: Update', function () {
 				id: '1',
 				profile_ids: [app.profile_id],
 				text: faker.lorem.sentences()
-			}, client);
+			});
 			update.promise.then(function () {
 				should.exist(update.id);
 				done();
@@ -53,7 +53,7 @@ describe('Module: Update', function () {
 			update = new Update({
 				profile_ids: [app.profile_id],
 				text: faker.lorem.sentences()
-			}, client);
+			});
 
 			done();
 		});
@@ -83,7 +83,7 @@ describe('Module: Update', function () {
 			update = new Update({
 				profile_ids: [app.profile_id],
 				text: faker.lorem.sentences()
-			}, client);
+			});
 			update.save(done);
 		});
 
@@ -111,7 +111,7 @@ describe('Module: Update', function () {
 			update = new Update({
 				profile_ids: [app.profile_id],
 				text: faker.lorem.sentences()
-			}, client);
+			});
 
 			update.save(done);
 		});
@@ -141,7 +141,7 @@ describe('Module: Update', function () {
 			update = new Update({
 				profile_ids: [app.profile_id],
 				text: faker.lorem.sentences()
-			}, client);
+			});
 
 			update.save(done);
 		});
@@ -168,9 +168,13 @@ describe('Module: Update', function () {
 			update = new Update({
 				profile_ids: [app.profile_id],
 				text: faker.lorem.sentences()
-			}, client);
+			});
 
 			update.save(done);
+		});
+
+		afterEach(function (done) {
+			update.destroy(done);
 		});
 
 		it('should not throw an error', function (done) {
@@ -186,9 +190,13 @@ describe('Module: Update', function () {
 			update = new Update({
 				profile_ids: [app.profile_id],
 				text: faker.lorem.sentences()
-			}, client);
+			});
 
 			update.save(done);
+		});
+
+		afterEach(function (done) {
+			update.destroy(done);
 		});
 
 		it('should not throw an error', function (done) {

@@ -34,7 +34,10 @@ export default class BufferClient {
 					reject();
 				}
 			});
-		}).then(callback);
+		}).then(() => {
+			global.BufferAPI = this;
+			callback();
+		});
 	}
 
 	/**

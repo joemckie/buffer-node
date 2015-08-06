@@ -2,8 +2,10 @@ describe('Core Suite', function () {
 	let client;
 
 	before(function (done) {
-		client = new BufferClient(app.access_key, done);
-		should.exist(client.client);
+		client = new BufferClient(app.access_key, function () {
+			should.exist(BufferAPI);
+			done();
+		});
 	});
 
 	it('should allow access to the API', function (done) {

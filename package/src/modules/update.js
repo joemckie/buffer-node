@@ -1,10 +1,7 @@
-import utils from '../utils'
+import utils from '../utils';
 
 export default class Update {
-	constructor (update, client) {
-		// Reference the API client
-		this.client = client;
-
+	constructor (update) {
 		this.promise = new Promise((resolve, reject) => {
 			if (typeof(update) === 'string') {
 				// Instantiating the update from an ID
@@ -27,7 +24,7 @@ export default class Update {
 	 * @param  {Function} callback  - The callback to run when the request has been fulfilled
 	 */
 	getByID (update_id, callback) {
-		this.client.get(`updates/${update_id}.json`, callback);
+		BufferAPI.get(`updates/${update_id}.json`, callback);
 	}
 
 	/**
@@ -37,7 +34,7 @@ export default class Update {
 	 */
 	edit (params, callback) {
 		this.promise.then(() => {
-			this.client.post(`updates/${this.id}/update.json`, {
+			BufferAPI.post(`updates/${this.id}/update.json`, {
 				text:         params.text         || this.text,
 				now:          params.now          || this.now,
 				media:        params.media        || this.media,
@@ -59,7 +56,7 @@ export default class Update {
 	 */
 	save (callback = function () {}) {
 		this.promise.then(() => {
-			this.client.post('updates/create.json', {
+			BufferAPI.post('updates/create.json', {
 				profile_ids:  this.profile_ids,
 				text:         this.text,
 				shorten:      this.shorten,
@@ -84,7 +81,7 @@ export default class Update {
 	 */
 	destroy (callback = function () {}) {
 		this.promise.then(() => {
-			this.client.post(`updates/${this.id}/destroy.json`, (err, res) => {
+			BufferAPI.post(`updates/${this.id}/destroy.json`, (err, res) => {
 				if (!err) {
 					// TODO:
 					// There's probably a better way of doing this...
@@ -103,7 +100,7 @@ export default class Update {
 	 * @param  {Function} callback - The callback to run when the request has been fulfilled
 	 */
 	share (callback) {
-		this.client.post(`updates/${this.id}/share.json`, (err, res) => {
+		BufferAPI.post(`updates/${this.id}/share.json`, (err, res) => {
 			if (!err) {
 				// The update object will have changed upon sharing, so map it
 				this.getByID(this.id, (err, res) => {
@@ -122,7 +119,7 @@ export default class Update {
 	 * @param  {Function} callback - The callback to run when the request has been fulfilled
 	 */
 	getInteractions (event, params, callback) {
-		this.client.post(`updates/${this.id}/interactions.json`, {
+		BufferAPI.post(`updates/${this.id}/interactions.json`, {
 			event: event,
 			page:  params.page  || null,
 			count: params.count || null
@@ -134,6 +131,6 @@ export default class Update {
 	 * @param  {Function} callback - The callback to run when the request has been fulfilled
 	 */
 	moveToTop (callback) {
-		this.client.post(`updates/${this.id}/move_to_top.json`, callback);
+		BufferAPI.post(`updates/${this.id}/move_to_top.json`, callback);
 	}
 }
