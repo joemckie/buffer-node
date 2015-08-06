@@ -47,7 +47,6 @@ export default class Profile {
 		BufferAPI.get(`profiles/${profile_id}.json`, callback);
 	}
 
-
 	/**
 	 * Gets a list of pending updates for a given profile and associates them with this object
 	 * @param  {object}   params   - API parameters to pass through to the URL
@@ -88,10 +87,19 @@ export default class Profile {
 		});
 	}
 
+	/**
+	 * Reorders updates in the user's buffer, given a new order
+	 * @param  {object}   params   - API parameters to pass through to the URL. "updates" must be present.
+	 * @param  {Function} callback - The callback to run when the request has been fulfilled
+	 */
 	reorderUpdates (params, callback) {
 		BufferAPI.post(`profiles/${this.id}/updates/reorder.json`, params, callback);
 	}
 
+	/**
+	 * Shuffles updates in the user's buffer at random
+	 * @param  {Function} callback - The callback to run when the request has been fulfilled
+	 */
 	shuffleUpdates (params, callback = function () {}) {
 		if (typeof(params) === 'function') {
 			callback = params;
