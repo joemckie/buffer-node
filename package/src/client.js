@@ -27,8 +27,12 @@ export default class BufferClient {
 		// Wait for the Buffer configuration to complete before finalising the instantiation
 		new Promise((resolve, reject) => {
 			this.getConfiguration((err, res) => {
-				this.config = res;
-				resolve();
+				if (!err) {
+					this.config = res;
+					resolve();
+				} else {
+					reject();
+				}
 			});
 		}).then(callback);
 	}
