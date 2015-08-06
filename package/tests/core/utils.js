@@ -20,4 +20,18 @@ describe('Utility Suite', function () {
 			done();
 		});
 	});
+
+	describe('Method: shuffleArray', function () {
+		var array = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+		var array_clone = array.slice();
+
+		it('should randomise the order of the array', function (done) {
+			utils.shuffleArray(array);
+
+			// Okay, there's a chance this test will fail
+			// if the shuffled array results in the exact same order...
+			array_clone.should.not.eql(array);
+			done();
+		});
+	});
 });

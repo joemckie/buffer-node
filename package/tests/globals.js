@@ -17,3 +17,5 @@ global.chai         = require('chai');
 global.faker        = require('faker');
 global.http         = require('http');
 global.should       = chai.should();
+global.expect       = chai.expect;
+global.async        = require('async');
