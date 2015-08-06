@@ -3,7 +3,7 @@ import Update from '../../src/modules/update';
 import utils from '../../src/utils';
 
 describe('Module: Profile', function () {
-	let profile;
+	let profile, updates;
 
 	this.timeout(3000);
 
@@ -46,6 +46,29 @@ describe('Module: Profile', function () {
 	});
 
 	describe('Method: getPendingUpdates', function () {
+		beforeEach(function (done) {
+			this.timeout(10000);
+
+			updates = []
+
+			async.times(5, function (n, next) {
+				var update = new Update({
+					profile_ids: [app.profile_id],
+					text: faker.lorem.sentences()
+				});
+				update.save(function () {
+					updates.push(update);
+					next();
+				});
+			}, done);
+		});
+
+		afterEach(function (done) {
+			async.each(updates, function (update, next) {
+				update.destroy(next);
+			}, done);
+		});
+
 		it('should not throw an error', function (done) {
 			profile.getPendingUpdates(function (err, res) {
 				should.not.exist(err);
@@ -78,10 +101,10 @@ describe('Module: Profile', function () {
 	});
 
 	describe('Method: reorderUpdates', function () {
-		let updates = [];
-
 		beforeEach(function (done) {
 			this.timeout(10000);
+
+			updates = [];
 
 			async.times(5, function (n, next) {
 				var update = new Update({
@@ -118,8 +141,6 @@ describe('Module: Profile', function () {
 	});
 
 	describe('Method: shuffleUpdates', function () {
-		let updates;
-
 		beforeEach(function (done) {
 			this.timeout(10000);
 

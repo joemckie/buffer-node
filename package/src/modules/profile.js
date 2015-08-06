@@ -1,4 +1,6 @@
 import utils from '../utils';
+import Update from './update';
+import async from 'async';
 
 export default class Profile {
 	constructor (profile_id) {
@@ -60,10 +62,17 @@ export default class Profile {
 
 		BufferAPI.get(`profiles/${this.id}/updates/pending.json`, params, (err, res) => {
 			if (!err) {
-				this.pending_updates = res;
+				async.forEachOf(res.updates, function (update, index, next) {
+					res.updates[index] = new Update(update);
+					res.updates[index].promise.then(next);
+				}, (err) => {
+					this.pending_updates = res.updates;
+					callback(err, res);
+				});
+			} else {
+				callback(err, res);
 			}
 
-			callback(err, res);
 		});
 	}
 
@@ -80,10 +89,16 @@ export default class Profile {
 
 		BufferAPI.get(`profiles/${this.id}/updates/sent.json`, params, (err, res) => {
 			if (!err) {
-				this.updates.sent = res;
+				async.forEachOf(res.updates, function (update, index, next) {
+					res.updates[index] = new Update(update);
+					res.updates[index].promise.then(next);
+				}, (err) => {
+					this.sent_updates = res.updates;
+					callback(err, res);
+				});
+			} else {
+				callback(err, res);
 			}
-
-			callback(err, res);
 		});
 	}
 
