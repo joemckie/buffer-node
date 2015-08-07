@@ -1,4 +1,5 @@
 import utils from '../utils';
+import Promise from 'promise';
 
 export default class Update {
 	constructor (update) {

@@ -22,3 +22,4 @@ bin/*
 # Package
 package/lib
 package/node_modules
+phantomjsdriver.log

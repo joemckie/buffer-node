@@ -15,6 +15,7 @@ module.exports = function(grunt) {
 
       env: {
         test: {
+          SELENIUM_SERVER_JAR: require('selenium-server-standalone-jar').path,
           NODE_ENV: 'test'
         }
       },

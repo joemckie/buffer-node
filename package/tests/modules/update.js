@@ -5,10 +5,6 @@ describe('Module: Update', function () {
 
 	this.timeout(3000);
 
-	before(function () {
-		client = new BufferClient(app.access_key);
-	});
-
 	describe('Instantiation', function () {
 		afterEach(function (done) {
 			update = undefined;

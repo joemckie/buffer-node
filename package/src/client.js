@@ -1,23 +1,32 @@
 var OAuth = require('oauth').OAuth2,
     querystring = require('qs');
 
+import Update from './modules/update';
+import Profile from './modules/profile';
+import Promise from 'promise';
+
 export default class BufferClient {
 	/**
 	 * Builds the BufferClient class
 	 * @param  {string} access_token - The access token associated with the registered app
+	 * @param  {Function} callback   - The callback to run when the request has been fulfilled
 	 */
-	constructor (access_token, callback = function () {}) {
-		this._access_token = access_token;
+	constructor (params, callback = function () {}) {
+		this._authenticated = typeof(params.authenticated) !== 'undefined' ? params.authenticated : true;
+		this._client_id = params.client_id;
+		this._client_secret = params.client_secret;
+		this._access_token = params.access_token;
+		this._redirect_url = params.redirect_url;
 		this._api_version = '1';
 		this._api_protocol = 'https';
 		this._host = `${this._api_protocol}://api.bufferapp.com`;
 		this._stringify_options = {
-			arrayFormat: 'brackets'
+			arrayFormat: 'index'
 		};
 
 		this.client = new OAuth(
-			app.client_id,
-			app.client_secret,
+			this._client_id,
+			this._client_secret,
 			'https://buffer.com/',
 			'oauth2/authorize',
 			'oauth2/token',
@@ -25,18 +34,32 @@ export default class BufferClient {
 		);
 
 		// Wait for the Buffer configuration to complete before finalising the instantiation
-		new Promise((resolve, reject) => {
+		this.promise = new Promise((resolve, reject) => {
+			if (!this._authenticated) {
+				// If a user hasn't authorized the client for use of their account,
+				// we need to get a permanent access token before interacting with the API
+				this.getAccessToken(this._access_token, (err, result, response) => {
+					if (result) {
+						result = JSON.parse(result);
+						this._access_token = result.access_token;
+						this._authenticated = true;
+						resolve();
+					} else if (err) {
+						reject();
+					}
+				});
+			} else {
+				resolve();
+			}
+		}).then(() => {
 			this.getConfiguration((err, res) => {
 				if (!err) {
+					global._bufferAPI = this;
 					this.config = res;
-					resolve();
-				} else {
-					reject();
 				}
+
+				callback(err, res);
 			});
-		}).then(() => {
-			global.BufferAPI = this;
-			callback();
 		});
 	}
 
@@ -68,8 +91,9 @@ export default class BufferClient {
 		}
 
 		this.client.get(`${this._host}/${this._api_version}/${endpoint}${params}`, this._access_token, function (err, res) {
-			if (res)
+			if (res) {
 				res = JSON.parse(res);
+			}
 
 			callback(err, res);
 		});
@@ -96,7 +120,7 @@ export default class BufferClient {
 
 		if (typeof(params) === 'function') {
 			callback = params;
-			params = '';
+			params   = '';
 		}
 
 		if (typeof(params) === 'object') {
@@ -104,110 +128,12 @@ export default class BufferClient {
 		}
 
 		this.client._request('POST', `${this._host}/${this._api_version}/${endpoint}`, post_headers, params, this._access_token, function (err, res) {
-			if (res)
+			if (res) {
 				res = JSON.parse(res);
+			}
 
 			callback(err, res);
 		});
-	}
-
-	/**
-	 * Retrieves a singualar user with a given ID
-	 * @param  {Function} callback - The callback to run when the request has been fulfilled
-	 */
-	getUser (callback) {
-		this.get('user.json', callback);
-	}
-
-	/**
-	 * Retrieves a list of profiles associated with the authorised account
-	 * @param  {Function} callback - The callback to run when the request has been fulfilled
-	 */
-	getProfiles (callback) {
-		this.get('profiles.json', (err, res) => {
-			this.profiles = res;
-
-			callback(err, res);
-		});
-	}
-
-	/**
-	 * Retrieves a singular profile with the given ID
-	 * @param  {integer}  profile_id - The ID of the profile to retrieve
-	 * @param  {Function} callback   - The callback to run when the request has been fulfilled
-	 */
-	getProfileById (profile_id, callback) {
-		this.get(`profiles/${profile_id}.json`, callback);
-	}
-
-	/**
-	 * Retrieves the schedules set up for the associated account
-	 * @param  {integer}  profile_id - The ID of the profile to retrieve
-	 * @param  {Function} callback   - The callback to run when the request has been fulfilled
-	 */
-	getProfileSchedules (profile_id, callback) {
-		this.get(`profiles/${profile_id}/schedules.json`, callback);
-	}
-
-	/**
-	 * Retrieves a singular update with a given ID
-	 * @param  {integer}  update_id - The ID of the update to retrieve
-	 * @param  {Function} callback  - The callback to run when the request has been fulfilled
-	 */
-	getUpdate (update_id, callback) {
-		this.get(`updates/${update_id}.json`, callback);
-	}
-
-	/**
-	 * Retrieves a list of pending updates for the associated account
-	 * @param  {Function} callback - The callback to run when the request has been fulfilled
-	 */
-	getPendingUpdates (profile_id, params, callback = null) {
-		callback = typeof(params) === 'function' ? params : callback;
-
-		this.get(`profiles/${profile_id}/updates/pending.json`, params, callback);
-	}
-
-	/**
-	 * Retrieves a list of sent updates from the associated account
-	 * @param  {integer}  profile_id - ID of the profile of which to retrieve updates
-	 * @param  {object}   params     - A list of params to be appended to the URL.
-	 * @param  {Function} callback   - The callback to run when the request has been fulfilled
-	 */
-	getSentUpdates (profile_id, params, callback = null) {
-		callback = typeof(params) === 'function' ? params : callback;
-
-		this.get(`profiles/${profile_id}/updates/sent.json`, params, callback);
-	}
-
-	/**
-	 * Adds a status update to the user's buffer
-	 * @param  {object}   params   - Details of the update to be created
-	 * @param  {Function} callback - The callback to run when the request has been fulfilled
-	 */
-	createUpdate (params, callback) {
-		this.post(`updates/create.json`, params, callback);
-	}
-
-	/**
-	 * Gets interactions (e.g. retweets) from an update with a given ID
-	 * @param  {integer}  update_id - ID of the update of which to retrieve interactions
-	 * @param  {object}   params    - A list of params to be appended to the URL.
-	 * @param  {Function} callback  - The callback to run when the request has been fulfilled
-	 */
-	getInteractions (update_id, params, callback = null) {
-		callback = typeof(params) === 'function' ? params : callback;
-
-		this.get(`updates/${update_id}/interactions.json`, params, callback);
-	}
-
-	/**
-	 * Gets the amount of times a link has been shared using Buffer
-	 * @param  {string}   url      - The URL of which to retrieve analytics
-	 * @param  {Function} callback - The callback to run when the request has been fulfilled
-	 */
-	getLinkShares (url, callback) {
-		this.get('links/shares.json', { url: url }, callback)
 	}
 
 	/**
@@ -216,5 +142,81 @@ export default class BufferClient {
 	 */
 	getConfiguration (callback) {
 		this.get('info/configuration.json', callback);
+	}
+
+	/**
+	 * Gets a list of profiles associated with the authenticated user
+	 * @param  {Function} callback - The callback to run when the request has been fulfilled
+	 */
+	getProfiles (callback) {
+		this.promise.then(() => {
+			this.get('profiles.json', (err, res) => {
+				if (!err) {
+					this.profiles = {};
+					async.forEachOf(res, (profile, index, next) => {
+						this.profiles[res[index].id] = new Profile(res[index]);
+						this.profiles[res[index].id].promise.then(next);
+					}, callback(err, res));
+				}
+			});
+		});
+	}
+
+	/**
+	 * Revokes access for the Buffer Client to access the API on behalf of the currently logged in user
+	 * @param  {Function} callback - The callback to run when the request has been fulfilled
+	 */
+	deauthorizeUser (callback) {
+		this.post('user/deauthorize.json', (err, res) => {
+			this.profiles = {};
+			this._authenticated = false;
+
+			callback(err, res);
+		});
+	}
+
+	getAccessToken (access_token, callback) {
+		// Okay, this is annoying. The OAuth library has a method to retrieve the access token,
+		// but it automatically encodes the temporary access token, invalidating the request.
+		// For now, the request needs to be done directly.
+		var parsedURL = require('url').parse(this.client._getAccessTokenUrl(), true);
+		var post_data = querystring.stringify({
+			client_id: this._client_id,
+			client_secret: this._client_secret,
+			redirect_uri: this._redirect_url,
+			grant_type: 'authorization_code',
+			code: access_token
+		});
+		var options = {
+			host: 'api.bufferapp.com',
+			path: '/1/oauth2/token.json',
+			port: 443,
+			method: 'POST',
+			headers: {
+				'Content-Type': 'application/x-www-form-urlencoded',
+				'Content-Length': post_data.length
+			}
+		};
+
+		this.client._executeRequest(
+			require('https'),
+			options,
+			post_data,
+			callback
+		);
+	}
+
+	static getAuthorizationUrl (client_id, redirect_url) {
+		return new OAuth(
+			client_id,
+			'',
+			'https://buffer.com/',
+			'oauth2/authorize',
+			'oauth2/token',
+			null
+		).getAuthorizeUrl({
+			redirect_uri: redirect_url,
+			response_type: 'code'
+		});
 	}
 }
