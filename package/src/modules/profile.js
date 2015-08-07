@@ -1,23 +1,29 @@
 import utils from '../utils';
 import Update from './update';
 import async from 'async';
+import Promise from 'promise';
 
 export default class Profile {
-	constructor (profile_id) {
+	constructor (profile) {
 		this.updates = {
 			sent:    {},
 			pending: {}
 		}
 
 		this.promise = new Promise((resolve, reject) => {
-			this.getByID(profile_id, (err, res) => {
-				if (!err) {
-					resolve(res);
-				} else {
-					throw err;
-					reject();
-				}
-			});
+			if (typeof(profile) === 'string') {
+				// Instantiating the update from an ID
+				this.getByID(profile, function (err, res) {
+					if (!err) {
+						resolve(res);
+					} else {
+						reject(err);
+					}
+				});
+			} else {
+				// Instantiating the update from an object
+				resolve(profile);
+			}
 		}).then((profile) => {
 			// Map the profile to this object
 			utils.mapObject(this, profile);
@@ -122,5 +128,37 @@ export default class Profile {
 		}
 
 		_bufferAPI.post(`profiles/${this.id}/updates/shuffle.json`, params, callback);
+	}
+
+	/**
+	 * Returns the schedules set for the current profile
+	 * @param  {Function} callback - The callback to run when the request has been fulfilled
+	 */
+	getSchedules (callback = function () {}) {
+		_bufferAPI.get(`profiles/${this.id}/schedules.json`, (err, res) => {
+			if (!err) {
+				this.schedules = res;
+			}
+
+			callback(err, res)
+		});
+	}
+
+	/**
+	 * Overwrites the schedules for the associated profile
+	 * @param  {array}    schedules - The new schedules to send to the API
+	 * @param  {Function} callback  - The callback to run when the request has been fulfilled
+	 * @return {Function}   [description]
+	 */
+	setSchedules (schedules, callback = function () {}) {
+		_bufferAPI.post(`profiles/${this.id}/schedules/update.json`, {
+			schedules: schedules
+		}, (err, res) => {
+			if (!err) {
+				this.schedules = schedules;
+			}
+
+			callback(err, res)
+		});
 	}
 }
