@@ -46,7 +46,7 @@ export default class Profile {
 	 * @param  {Function} callback   - The callback to run when the request has been fulfilled
 	 */
 	getByID (profile_id, callback) {
-		BufferAPI.get(`profiles/${profile_id}.json`, callback);
+		_bufferAPI.get(`profiles/${profile_id}.json`, callback);
 	}
 
 	/**
@@ -60,7 +60,7 @@ export default class Profile {
 			params   = '';
 		}
 
-		BufferAPI.get(`profiles/${this.id}/updates/pending.json`, params, (err, res) => {
+		_bufferAPI.get(`profiles/${this.id}/updates/pending.json`, params, (err, res) => {
 			if (!err) {
 				async.forEachOf(res.updates, function (update, index, next) {
 					res.updates[index] = new Update(update);
@@ -87,7 +87,7 @@ export default class Profile {
 			params   = '';
 		}
 
-		BufferAPI.get(`profiles/${this.id}/updates/sent.json`, params, (err, res) => {
+		_bufferAPI.get(`profiles/${this.id}/updates/sent.json`, params, (err, res) => {
 			if (!err) {
 				async.forEachOf(res.updates, function (update, index, next) {
 					res.updates[index] = new Update(update);
@@ -108,7 +108,7 @@ export default class Profile {
 	 * @param  {Function} callback - The callback to run when the request has been fulfilled
 	 */
 	reorderUpdates (params, callback) {
-		BufferAPI.post(`profiles/${this.id}/updates/reorder.json`, params, callback);
+		_bufferAPI.post(`profiles/${this.id}/updates/reorder.json`, params, callback);
 	}
 
 	/**
@@ -121,6 +121,6 @@ export default class Profile {
 			params   = '';
 		}
 
-		BufferAPI.post(`profiles/${this.id}/updates/shuffle.json`, params, callback);
+		_bufferAPI.post(`profiles/${this.id}/updates/shuffle.json`, params, callback);
 	}
 }

@@ -3,7 +3,7 @@ describe('Core Suite', function () {
 
 	before(function (done) {
 		client = new BufferClient(app.access_key, function () {
-			should.exist(BufferAPI);
+			should.exist(_bufferAPI);
 			done();
 		});
 	});
