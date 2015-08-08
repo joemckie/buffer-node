@@ -1,7 +1,3 @@
-import Profile from '../../src/modules/profile';
-import Update from '../../src/modules/update';
-import utils from '../../src/utils';
-
 describe('Module: Profile', function () {
 	let profile, updates;
 

@@ -1,5 +1,3 @@
-import utils from '../../src/utils';
-
 describe('Utility Suite', function () {
 	describe('Method: mapObject', function () {
 		var empty_object = {},

@@ -23,3 +23,6 @@ global.expect            = chai.expect;
 global.async             = require('async');
 global.seleniumWebdriver = require('selenium-webdriver');
 global.By                = seleniumWebdriver.By;
+global.Profile           = require('../src/modules/profile');
+global.Update            = require('../src/modules/update');
+global.utils             = require('../src/utils');

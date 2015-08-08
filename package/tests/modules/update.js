@@ -1,5 +1,3 @@
-import Update from '../../src/modules/update';
-
 describe('Module: Update', function () {
 	let client, update;
 
