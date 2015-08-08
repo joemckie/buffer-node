@@ -175,35 +175,16 @@ export default class BufferClient {
 		});
 	}
 
+	/**
+	 * Gets a permanent access token when authenticating the user.
+	 * @param  {string}   access_token - The temporary access token assigned when passing through the OAuth gateway
+	 * @param  {Function} callback     - The callback to run when the request has been fulfilled
+	 */
 	getAccessToken (access_token, callback) {
-		// Okay, this is annoying. The OAuth library has a method to retrieve the access token,
-		// but it automatically encodes the temporary access token, invalidating the request.
-		// For now, the request needs to be done directly.
-		var parsedURL = require('url').parse(this.client._getAccessTokenUrl(), true);
-		var post_data = querystring.stringify({
-			client_id: this._client_id,
-			client_secret: this._client_secret,
+		this.client.getOAuthAccessToken(access_token, {
 			redirect_uri: this._redirect_url,
-			grant_type: 'authorization_code',
-			code: access_token
-		});
-		var options = {
-			host: 'api.bufferapp.com',
-			path: '/1/oauth2/token.json',
-			port: 443,
-			method: 'POST',
-			headers: {
-				'Content-Type': 'application/x-www-form-urlencoded',
-				'Content-Length': post_data.length
-			}
-		};
-
-		this.client._executeRequest(
-			require('https'),
-			options,
-			post_data,
-			callback
-		);
+			grant_type: 'authorization_code'
+		}, callback);
 	}
 
 	static getAuthorizationUrl (client_id, redirect_url) {
