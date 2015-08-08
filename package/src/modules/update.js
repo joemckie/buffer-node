@@ -100,7 +100,7 @@ export default class Update {
 	 * Instantly shares an update to the selected account
 	 * @param  {Function} callback - The callback to run when the request has been fulfilled
 	 */
-	share (callback) {
+	share (callback = function () {}) {
 		_bufferAPI.post(`updates/${this.id}/share.json`, (err, res) => {
 			if (!err) {
 				// The update object will have changed upon sharing, so map it
