@@ -8,8 +8,9 @@ if (!global._babelPolyfill) {
 }
 
 global.app = {
-	client_id: '55c4f51e726bfd8513653773',
-	client_secret: 'd676b756bbea3441d9d05ee13cd9b470',
+	access_token: '1/c50f569ec43e4b27686f5298b4484e0f',
+	client_id: '55c663c0c6eeaacd2ea217c2',
+	client_secret: '7c8524ce6b74bdde1a7112c7005436b9',
 	profile_id: '55c2516e8e6e335428e74319',
 	redirect_url: 'http://localhost:3000/verify'
 };
