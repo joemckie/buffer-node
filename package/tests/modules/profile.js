@@ -14,6 +14,15 @@ describe('Module: Profile', function () {
 			done();
 		});
 
+		it('should assign the updates object structure', function (done) {
+			profile.should.have.property('updates');
+			profile.updates.should.eql({
+				sent: {},
+				pending: {}
+			});
+			done();
+		})
+
 		it('should be able to be instantiated with a profile ID', function (done) {
 			profile = new Profile(app.profile_id);
 			profile.promise.then(function () {
@@ -48,11 +57,10 @@ describe('Module: Profile', function () {
 	});
 
 	describe('Method: getPendingUpdates', function () {
-		beforeEach(function (done) {
-			this.timeout(10000);
+		this.timeout(10000);
 
-			updates = []
-
+		before(function (done) {
+			updates = [];
 			async.times(5, function (n, next) {
 				var update = new Update({
 					profile_ids: [app.profile_id],
@@ -65,7 +73,7 @@ describe('Module: Profile', function () {
 			}, done);
 		});
 
-		afterEach(function (done) {
+		after(function (done) {
 			async.each(updates, function (update, next) {
 				update.destroy(next);
 			}, done);
@@ -84,9 +92,48 @@ describe('Module: Profile', function () {
 				done();
 			});
 		});
+
+		it('should instantiate each update with the Update object', function (done) {
+			profile.getPendingUpdates(function (err, res) {
+				async.forEachOf(profile.updates.pending, function (update, index, next) {
+					update.should.be.an.instanceOf(Update);
+					next();
+				}, done);
+			});
+		});
 	});
 
 	describe('Method: getSentUpdates', function () {
+		before(function (done) {
+			this.timeout(30000);
+			async.waterfall([
+				function (callback) {
+					var updates = [];
+					async.times(5, function (n, next) {
+						var update = new Update({
+							profile_ids: [app.profile_id],
+							text: faker.lorem.sentences()
+						});
+						update.save(function () {
+							updates.push(update);
+							next();
+						});
+					}, function () {
+						callback(null, updates);
+					});
+				},
+				function (updates, callback) {
+					async.eachSeries(updates, function (update, next) {
+						update.share(next);
+					}, function () {
+						callback(null);
+					});
+				}
+			], function () {
+				done();
+			});
+		});
+
 		it('should not throw an error', function (done) {
 			profile.getSentUpdates(function (err, res) {
 				should.not.exist(err);
@@ -98,6 +145,15 @@ describe('Module: Profile', function () {
 			profile.getSentUpdates(function (err, res) {
 				profile.updates.sent.should.not.be.empty;
 				done();
+			});
+		});
+
+		it('should instantiate each update with the Update object', function (done) {
+			profile.getPendingUpdates(function (err, res) {
+				async.forEachOf(profile.updates.sent, function (update, index, next) {
+					update.should.be.an.instanceOf(Update);
+					next();
+				}, done);
 			});
 		});
 	});

@@ -18,8 +18,9 @@ export default class BufferClient {
 		this._access_token = params.access_token;
 		this._redirect_url = params.redirect_url;
 		this._api_version = '1';
-		this._api_protocol = 'https';
-		this._host = `${this._api_protocol}://api.bufferapp.com`;
+		this._protocol = 'https';
+		this._hostname = 'api.bufferapp.com';
+		this._host = `${this._protocol}://${this._hostname}`;
 		this._stringify_options = {
 			arrayFormat: 'index'
 		};
@@ -27,9 +28,9 @@ export default class BufferClient {
 		this.client = new OAuth(
 			this._client_id,
 			this._client_secret,
-			'https://buffer.com/',
+			`${this._host}/${this._api_version}/`,
 			'oauth2/authorize',
-			'oauth2/token',
+			'oauth2/token.json',
 			null
 		);
 
@@ -38,13 +39,12 @@ export default class BufferClient {
 			if (!this._authenticated) {
 				// If a user hasn't authorized the client for use of their account,
 				// we need to get a permanent access token before interacting with the API
-				this.getAccessToken(this._access_token, (err, result, response) => {
-					if (result) {
-						result = JSON.parse(result);
-						this._access_token = result.access_token;
+				this.getAccessToken(this._access_token, (err, res) => {
+					if (res) {
+						this._access_token = res;
 						this._authenticated = true;
 						resolve();
-					} else if (err) {
+					} else {
 						reject();
 					}
 				});
@@ -90,12 +90,12 @@ export default class BufferClient {
 			params = `?${querystring.stringify(params, this._stringify_options)}`;
 		}
 
-		this.client.get(`${this._host}/${this._api_version}/${endpoint}${params}`, this._access_token, function (err, res) {
+		this.client.get(`${this._host}/${this._api_version}/${endpoint}${params}`, this._access_token, function (err, res, response) {
 			if (res) {
 				res = JSON.parse(res);
 			}
 
-			callback(err, res);
+			callback(err, res, response);
 		});
 	}
 
@@ -127,12 +127,12 @@ export default class BufferClient {
 			params = querystring.stringify(params, this._stringify_options);
 		}
 
-		this.client._request('POST', `${this._host}/${this._api_version}/${endpoint}`, post_headers, params, this._access_token, function (err, res) {
+		this.client._request('POST', `${this._host}/${this._api_version}/${endpoint}`, post_headers, params, this._access_token, function (err, res, response) {
 			if (res) {
 				res = JSON.parse(res);
 			}
 
-			callback(err, res);
+			callback(err, res, response);
 		});
 	}
 
@@ -152,14 +152,26 @@ export default class BufferClient {
 		this.promise.then(() => {
 			this.get('profiles.json', (err, res) => {
 				if (!err) {
-					this.profiles = {};
-					async.forEachOf(res, (profile, index, next) => {
-						this.profiles[res[index].id] = new Profile(res[index]);
-						this.profiles[res[index].id].promise.then(next);
-					}, callback(err, res));
+					this._profiles = {};
+					async.eachSeries(res, (profile, next) => {
+						this._profiles[profile.id] = new Profile(profile);
+						this._profiles[profile.id].promise.then(next);
+					}, function () {
+						callback(err, res)
+					});
 				}
 			});
 		});
+	}
+
+	/**
+	 * Returns a profile object with a given ID.
+	 * Note that this does not query the API, so a list of profiles must have been retrieved beforehand.
+	 * @param  {string} profile_id - The ID of the profile to retrieve
+	 * @return {object}            - The queried profile object
+	 */
+	getProfile (profile_id) {
+		return this._profiles[profile_id];
 	}
 
 	/**
@@ -168,7 +180,7 @@ export default class BufferClient {
 	 */
 	deauthorizeUser (callback) {
 		this.post('user/deauthorize.json', (err, res) => {
-			this.profiles = {};
+			this._profiles = {};
 			this._authenticated = false;
 
 			callback(err, res);
@@ -187,6 +199,11 @@ export default class BufferClient {
 		}, callback);
 	}
 
+	/**
+	 * Gets the authorization URL for the current app
+	 * @param  {string} client_id    - The client ID you were assigned when registering your Buffer application
+	 * @param  {string} redirect_url - The redirect URL you set when registering your Buffer application
+	 */
 	static getAuthorizationUrl (client_id, redirect_url) {
 		return new OAuth(
 			client_id,
