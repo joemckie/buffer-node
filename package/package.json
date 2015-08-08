@@ -33,7 +33,8 @@
   "scripts": {
     "compile": "babel -d lib/ src/",
     "prepublish": "npm run compile",
-    "test": "grunt test"
+    "test": "grunt test",
+    "develop": "grunt develop"
   },
   "repository": {
     "type": "git",
