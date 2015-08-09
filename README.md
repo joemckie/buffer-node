@@ -19,6 +19,8 @@ For simplicity, examples will be shown using the ES5 syntax.
 
 ##### Express
 
+*In a real world situation, you should save the client in the user's session, and not overwrite the client variable on the server.*
+
 ```javascript
 var BufferClient = require('buffer-node-api'),
     app          = require('express')(),
@@ -48,13 +50,15 @@ app.get('/login', function (req, res) {
 app.get('/deauthorize', function (req, res) {
   client.deauthorizeUser(function (err, result) {
     if (!err) {
-      // Redirect away
+      // User deauthorised. Redirect away
     }
   });
 });
 ```
 
--
+## Documentation
+
+For full code documentation and examples, click [here](http://joemckie.github.io/buffer-node-docs).
 
 ## Licence:
 
