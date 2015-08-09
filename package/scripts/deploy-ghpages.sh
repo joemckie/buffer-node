@@ -3,6 +3,7 @@
 ( cd ../;
 git checkout gh-pages;
 cd package;
+npm install;
 grunt esdoc;
 git config user.name "Travis-CI";
 git config user.email "travis@joemck.ie";
