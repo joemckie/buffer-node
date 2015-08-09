@@ -42,7 +42,8 @@
     "prepublish": "npm run compile",
     "test": "grunt test",
     "develop": "grunt develop",
-    "coverage": "babel-node node_modules/.bin/isparta cover --report text --report html node_modules/.bin/_mocha -- --recursive --compilers babel:babel/register --require=tests/globals tests"
+    "coveralls": "npm run coverage && cat ./coverage/lcov.info | ./node_modules/coveralls/bin/coveralls.js && rm -rf ./coverage",
+    "coverage": "babel-node node_modules/.bin/isparta cover --report text --report lcov node_modules/.bin/_mocha -- --recursive --compilers babel:babel/register --require=tests/globals tests"
   },
   "repository": {
     "type": "git",
