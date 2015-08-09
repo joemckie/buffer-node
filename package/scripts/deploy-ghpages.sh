@@ -1,6 +1,6 @@
 #!/bin/bash
 
-( cd ../../;
+( cd ../;
 git checkout gh-pages;
 cd package;
 npm install;
