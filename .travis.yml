@@ -9,10 +9,4 @@ sudo: false
 before_install: cd package
 install: npm install
 script: npm run compile
-after_success:
-  - npm run coveralls
-  - grunt esdoc
-  - cd doc
-  - git add .
-  - git commit -am "Updated documentation"
-  - git push -u origin gh-pages
+after_success: npm run coveralls
