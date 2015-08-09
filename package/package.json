@@ -45,7 +45,7 @@
     "develop": "grunt develop",
     "coveralls": "npm run coverage && cat ./coverage/lcov.info | ./node_modules/coveralls/bin/coveralls.js && rm -rf ./coverage",
     "coverage": "babel-node node_modules/.bin/isparta cover --report text --report lcov node_modules/.bin/_mocha -- --recursive --compilers babel:babel/register --require=tests/globals tests",
-    "documentation": "cd ../ && git checkout gh-pages && cd ./package && npm install && grunt esdoc && git add -A . && git commit -m 'Updated documentation' && git push -u origin gh-pages"
+    "documentation": "cd ../ && git checkout gh-pages && cd ./package && npm install && grunt esdoc && cd ../ && git add -A . && git commit -m 'Updated documentation' && git push -u origin gh-pages"
   },
   "repository": {
     "type": "git",
