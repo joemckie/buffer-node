@@ -4,5 +4,5 @@ node_js:
   - "0.12"
   - "iojs-v2.1.0"
 sudo: false
-script: npm run compile
-after_success: npm run coveralls
+script: 'cd package && npm run compile'
+after_success: 'cd package && npm run coveralls'
