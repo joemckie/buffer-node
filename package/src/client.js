@@ -1,6 +1,5 @@
-var OAuth = require('oauth').OAuth2,
-    querystring = require('qs');
-
+import {OAuth, OAuthEcho, OAuth2} from 'oauth';
+import querystring from 'qs';
 import Update from './modules/update';
 import Profile from './modules/profile';
 import Promise from 'promise';
@@ -26,6 +25,7 @@ export default class BufferClient {
 		};
 
 		this.client = new OAuth(
+		this.client = new OAuth2(
 			this._client_id,
 			this._client_secret,
 			`${this._host}/${this._api_version}/`,
@@ -205,7 +205,7 @@ export default class BufferClient {
 	 * @param  {string} redirect_url - The redirect URL you set when registering your Buffer application
 	 */
 	static getAuthorizationUrl (client_id, redirect_url) {
-		return new OAuth(
+		return new OAuth2(
 			client_id,
 			'',
 			'https://buffer.com/',
