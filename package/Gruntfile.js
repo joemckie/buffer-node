@@ -33,7 +33,7 @@ module.exports = function(grunt) {
           options: {
             coverage: false,
             source: './src',
-            destination: './doc',
+            destination: '../',
             title: 'Buffer for Node Documentation',
             test: {
               type: 'mocha',
