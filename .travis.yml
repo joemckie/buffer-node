@@ -4,5 +4,9 @@ node_js:
   - "0.12"
   - "iojs-v2.1.0"
 sudo: false
+
+# Build lifecycle
+before_install: cd package
+install: npm install
 script: npm run compile
 after_success: npm run coveralls
