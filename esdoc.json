@@ -1,6 +1,6 @@
 {
 	"source": "./package/src",
-	"destination": "./package/doc",
+	"destination": ".",
 	"coverage": false,
 	"title": "Buffer for Node Documentation",
 	"package": "package/package.json",
