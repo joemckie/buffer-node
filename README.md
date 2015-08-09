@@ -13,6 +13,47 @@
 
 To get started with this package, install it with `npm i buffer-node-api --save`.
 
+### Usage
+
+For simplicity, examples will be shown using the ES5 syntax.
+
+##### Express
+
+```javascript
+var BufferClient = require('buffer-node-api'),
+    app          = require('express')(),
+    client       = null;
+  
+// Returning from the OAuth gateway
+app.get('/verify', function (req, res) {
+  client = new BufferClient({
+    access_token: req.query.code,
+    client_id: '<your_client_id>',
+    client_secret: '<your_client_secret>',
+    redirect_url: '<your_redirect_url>',
+    authenticated: false
+  }, function (err, result) {
+    if (!err) {
+      // Client instantiated correctly, you should redirect away from this page
+    }
+  });
+});
+
+app.get('/login', function (req, res) {
+  var auth_url = BufferClient.getAuthorizationUrl('<your_client_id>', '<your_redirect_url>');
+  
+  // Use auth_url somewhere on your page to link to Buffer's authorisation gateway page
+});
+
+app.get('/deauthorize', function (req, res) {
+  client.deauthorizeUser(function (err, result) {
+    if (!err) {
+      // Redirect away
+    }
+  });
+});
+```
+
 -
 
 ## Licence:
