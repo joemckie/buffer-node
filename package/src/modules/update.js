@@ -21,7 +21,7 @@ export default class Update {
 
 	/**
 	 * Retrieves a singular update with a given ID
-	 * @param  {integer}  update_id - The ID of the update to retrieve
+	 * @param  {Integer}  update_id - The ID of the update to retrieve
 	 * @param  {Function} callback  - The callback to run when the request has been fulfilled
 	 */
 	getByID (update_id, callback) {
@@ -30,7 +30,7 @@ export default class Update {
 
 	/**
 	 * Updates the current status update on the API, then modifies the object to match the edit
-	 * @param  {object}   params   - The parameters to update
+	 * @param  {Object}   params   - The parameters to update
 	 * @param  {Function} callback - The callback to run when the request has been fulfilled
 	 */
 	edit (params, callback) {
@@ -116,7 +116,7 @@ export default class Update {
 
 	/**
 	 * Gets interactions (e.g. retweets) from an update with a given ID
-	 * @param  {object}   params   - A list of params to be appended to the URL.
+	 * @param  {Object}   params   - A list of params to be appended to the URL.
 	 * @param  {Function} callback - The callback to run when the request has been fulfilled
 	 */
 	getInteractions (event, params, callback) {
