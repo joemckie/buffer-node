@@ -19,8 +19,6 @@ To get started with this package, install it with `npm i buffer-node-api --save`
 
 This package is released under the [**MIT Licence**](http://opensource.org/licenses/MIT). This means you're free to use it at no cost in any of your commercial or non-commercial projects. If you want to contribute to this project, great! Please read below for instructions on how to get involved.
 
--
-
 ## Contributing:
 
 Getting started is easy with the [Vagrant](http://vagrantup.com)  VM. Simply run `vagrant up` and then `vagrant ssh`.
