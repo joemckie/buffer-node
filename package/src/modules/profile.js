@@ -48,7 +48,7 @@ export default class Profile {
 
 	/**
 	 * Gets a single profile by its ID
-	 * @param  {integer}  profile_id - The ID of the profile to retrieve
+	 * @param  {Integer}  profile_id - The ID of the profile to retrieve
 	 * @param  {Function} callback   - The callback to run when the request has been fulfilled
 	 */
 	getByID (profile_id, callback) {
@@ -57,7 +57,7 @@ export default class Profile {
 
 	/**
 	 * Gets a list of pending updates for a given profile and associates them with this object
-	 * @param  {object}   params   - API parameters to pass through to the URL
+	 * @param  {Object}   params   - API parameters to pass through to the URL
 	 * @param  {Function} callback - The callback to run when the request has been fulfilled
 	 */
 	getPendingUpdates (params, callback) {
@@ -84,7 +84,7 @@ export default class Profile {
 
 	/**
 	 * Gets a list of sent updates for a given profile and associates them with this object
-	 * @param  {object}   params   - API parameters to pass through to the URL
+	 * @param  {Object}   params   - API parameters to pass through to the URL
 	 * @param  {Function} callback - The callback to run when the request has been fulfilled
 	 */
 	getSentUpdates (params, callback) {
@@ -110,7 +110,7 @@ export default class Profile {
 
 	/**
 	 * Reorders updates in the user's buffer, given a new order
-	 * @param  {object}   params   - API parameters to pass through to the URL. "updates" must be present.
+	 * @param  {Object}   params   - API parameters to pass through to the URL. "updates" must be present.
 	 * @param  {Function} callback - The callback to run when the request has been fulfilled
 	 */
 	reorderUpdates (params, callback) {
@@ -146,7 +146,7 @@ export default class Profile {
 
 	/**
 	 * Overwrites the schedules for the associated profile
-	 * @param  {array}    schedules - The new schedules to send to the API
+	 * @param  {Array}    schedules - The new schedules to send to the API
 	 * @param  {Function} callback  - The callback to run when the request has been fulfilled
 	 * @return {Function}   [description]
 	 */

@@ -7,8 +7,30 @@ import Promise from 'promise';
 export default class BufferClient {
 	/**
 	 * Builds the BufferClient class
-	 * @param  {string} access_token - The access token associated with the registered app
-	 * @param  {Function} callback   - The callback to run when the request has been fulfilled
+	 * @param {String}  params - The access token associated with the registered app
+	 * @param {Boolean} [params.authenticated] - Flag to determine whether the user has been authenticated or not. If false, a long-lived access token will be generated and assigned upon instantiation.
+	 * @param {String}  params.client_id - The client ID of your Buffer application
+	 * @param {String}  params.client_secret - The client secret of your Buffer application
+	 * @param {String}  params.access_token - The access token for the user. If the `authentication` parameter is false, this will be overwritten by the `getAccessToken` method.
+	 * @param {String}  params.redirect_url - The redirection URL for your Buffer application
+	 * @param {Function} [callback] - The callback to run when the request has been fulfilled
+	 * @example <caption>Simple instantiation, no authentication needed. E.g. for a user that has already authenticated their account</caption>
+	 * new BufferClient({
+	 *   access_token: '<your_access_token>',
+	 *   client_id: '<your_client_id>',
+	 *   client_secret: '<your_client_secret>',
+	 *   redirect_url: '<your_redirection_url>'
+	 * });
+	 * @example <caption>Force access_token generation with the `authentication` flag</caption>
+	 * new BufferClient({
+	 *   access_token: '<your_access_token>',
+	 *   client_id: '<your_client_id>',
+	 *   client_secret: '<your_client_secret>',
+	 *   redirect_url: '<your_redirection_url>',
+	 *   authenticated: false
+	 * }, function (err, res) {
+	 *   // Do something here
+	 * });
 	 */
 	constructor (params, callback = function () {}) {
 		this._authenticated = typeof(params.authenticated) !== 'undefined' ? params.authenticated : true;
@@ -24,7 +46,16 @@ export default class BufferClient {
 			arrayFormat: 'index'
 		};
 
-		this.client = new OAuth(
+		/**
+		 * The Buffer configuration retrieved from the /info/configuration.json endpoint
+		 * @type {Object}
+		 */
+		this.config = {};
+
+		/**
+		 * The OAuth2 client that will be used to automatically authenticate API URLs
+		 * @type {Object}
+		 */
 		this.client = new OAuth2(
 			this._client_id,
 			this._client_secret,
@@ -34,7 +65,10 @@ export default class BufferClient {
 			null
 		);
 
-		// Wait for the Buffer configuration to complete before finalising the instantiation
+		/**
+		 * A promise that will return after the BufferClient instance has been built
+		 * @type {Promise}
+		 */
 		this.promise = new Promise((resolve, reject) => {
 			if (!this._authenticated) {
 				// If a user hasn't authorized the client for use of their account,
@@ -65,8 +99,8 @@ export default class BufferClient {
 
 	/**
 	 * Queries an API endpoint using the GET method
-	 * @param  {string}   endpoint - The API endpoint to query. This should not be the full API URL. Example: 'users.json'
-	 * @param  {object}   params   - A list of params to be appended to the URL. If omitted, the default Buffer API attributes will be used.
+	 * @param  {String}   endpoint - The API endpoint to query. This should not be the full API URL. Example: 'users.json'
+	 * @param  {Object}   params   - A list of params to be appended to the URL. If omitted, the default Buffer API attributes will be used.
 	 * @param  {Function} callback - The callback to run when the request has been fulfilled
 	 * @example <caption>Using the optional `params` parameter:</caption>
 	 * this.get('profiles/4eb854340acb04e870000010/updates/sent.json', {
@@ -101,8 +135,8 @@ export default class BufferClient {
 
 	/**
 	 * Queries an API endpoint using the POST method
-	 * @param  {string}   endpoint - The API endpoint to query. This should not be the full API URL. Example: 'users.json'
-	 * @param  {object}   params   - A list of params to be appended to the URL. If omitted, the default Buffer API attributes will be used.
+	 * @param  {String}   endpoint - The API endpoint to query. This should not be the full API URL. Example: 'users.json'
+	 * @param  {Object}   params   - A list of params to be appended to the URL. If omitted, the default Buffer API attributes will be used.
 	 * @param  {Function} callback - The callback to run when the request has been fulfilled
 	 * @example <caption>Using the optional `params` parameter:</caption>
 	 * this.post('profiles/4eb854340acb04e870000010/schedules/update.json', { ... }, function (err, res) {
@@ -139,8 +173,13 @@ export default class BufferClient {
 	/**
 	 * Retrieves the current Buffer configuration
 	 * @param  {Function} callback - The callback to run when the request has been fulfilled
+	 * @example
+	 * // ...
+	 * client.getConfiguration(function (err, res) {
+	 *   // Do something
+	 * });
 	 */
-	getConfiguration (callback) {
+	_getConfiguration (callback) {
 		this.get('info/configuration.json', callback);
 	}
 
@@ -167,8 +206,8 @@ export default class BufferClient {
 	/**
 	 * Returns a profile object with a given ID.
 	 * Note that this does not query the API, so a list of profiles must have been retrieved beforehand.
-	 * @param  {string} profile_id - The ID of the profile to retrieve
-	 * @return {object}            - The queried profile object
+	 * @param  {String} profile_id - The ID of the profile to retrieve
+	 * @return {Object}            - The queried profile object
 	 */
 	getProfile (profile_id) {
 		return this._profiles[profile_id];
@@ -189,7 +228,7 @@ export default class BufferClient {
 
 	/**
 	 * Gets a permanent access token when authenticating the user.
-	 * @param  {string}   access_token - The temporary access token assigned when passing through the OAuth gateway
+	 * @param  {String}   access_token - The temporary access token assigned when passing through the OAuth gateway
 	 * @param  {Function} callback     - The callback to run when the request has been fulfilled
 	 */
 	getAccessToken (access_token, callback) {
@@ -201,8 +240,8 @@ export default class BufferClient {
 
 	/**
 	 * Gets the authorization URL for the current app
-	 * @param  {string} client_id    - The client ID you were assigned when registering your Buffer application
-	 * @param  {string} redirect_url - The redirect URL you set when registering your Buffer application
+	 * @param  {String} client_id    - The client ID you were assigned when registering your Buffer application
+	 * @param  {String} redirect_url - The redirect URL you set when registering your Buffer application
 	 */
 	static getAuthorizationUrl (client_id, redirect_url) {
 		return new OAuth2(
