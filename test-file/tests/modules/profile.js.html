@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <base data-ice="baseUrl" href="../../../">
+  <title data-ice="title">tests/modules/profile.js | Buffer for Node Documentation API Document</title>
+  <link type="text/css" rel="stylesheet" href="css/style.css">
+  <link type="text/css" rel="stylesheet" href="css/prettify-tomorrow.css">
+  <script src="script/prettify/prettify.js"></script>
+  
+  
+</head>
+<body class="layout-container">
+
+<header>
+  <a href="./">Home</a>
+  <a href="identifiers.html">Identifier</a>
+  <a href="source.html">Source</a>
+  <a href="test.html" data-ice="testLink">Test</a>
+  <a data-ice="repoURL" href="git+ssh://git@github.com/joemckie/buffer-node.git">Repository</a>
+  <div class="search-box">
+  <span>
+    <img src="./image/search.png">
+    <span class="search-input-edge"></span><input class="search-input"><span class="search-input-edge"></span>
+  </span>
+    <ul class="search-result"></ul>
+  </div>
+</header>
+
+<nav class="navigation" data-ice="nav"><div data-ice="classWrap">
+  <h2>Class</h2>
+  <ul>
+    
+  <li data-ice="classDoc"><span><a href="class/src/client.js~BufferClient.html">BufferClient</a></span></li>
+<li data-ice="classDoc"><span><a href="class/src/modules/profile.js~Profile.html">Profile</a></span></li>
+<li data-ice="classDoc"><span><a href="class/src/modules/update.js~Update.html">Update</a></span></li>
+<li data-ice="classDoc"><span><a href="class/src/utils.js~Utils.html">Utils</a></span></li>
+</ul>
+</div>
+
+
+
+
+
+
+
+
+
+
+</nav>
+
+<div class="content" data-ice="content"><h1 data-ice="title">tests/modules/profile.js</h1>
+<pre class="source-code line-number"><code class="prettyprint linenums" data-ice="content">describe(&apos;Module: Profile&apos;, function () {
+	let profile, updates;
+
+	this.timeout(3000);
+
+	beforeEach(function (done) {
+		profile = new Profile(app.profile_id);
+		profile.promise.then(done);
+	});
+
+	describe(&apos;Instantiation&apos;, function () {
+		afterEach(function (done) {
+			profile = undefined;
+			done();
+		});
+
+		it(&apos;should assign the updates object structure&apos;, function (done) {
+			profile.should.have.property(&apos;updates&apos;);
+			profile.updates.should.eql({
+				sent: {},
+				pending: {}
+			});
+			done();
+		})
+
+		it(&apos;should be able to be instantiated with a profile ID&apos;, function (done) {
+			profile = new Profile(app.profile_id);
+			profile.promise.then(function () {
+				profile.id.should.equal(app.profile_id);
+				done();
+			});
+		});
+
+		it(&apos;should be able to be instantiated with a profile object&apos;, function (done) {
+			profile = new Profile({
+				id: &apos;1&apos;,
+			});
+			profile.promise.then(function () {
+				should.exist(profile.id);
+				done();
+			});
+		})
+	});
+
+	describe(&apos;Property: pending_updates&apos;, function () {
+		it(&apos;should retrieve the pending update list&apos;, function (done) {
+			profile.pending_updates.should.equal(profile.updates.pending);
+			done();
+		});
+	});
+
+	describe(&apos;Property: sent_updates&apos;, function () {
+		it(&apos;should retrieve the sent update list&apos;, function (done) {
+			profile.sent_updates.should.equal(profile.updates.sent);
+			done();
+		});
+	});
+
+	describe(&apos;Method: getPendingUpdates&apos;, function () {
+		this.timeout(10000);
+
+		before(function (done) {
+			updates = [];
+			async.times(5, function (n, next) {
+				var update = new Update({
+					profile_ids: [app.profile_id],
+					text: faker.lorem.sentences()
+				});
+				update.save(function () {
+					updates.push(update);
+					next();
+				});
+			}, done);
+		});
+
+		after(function (done) {
+			async.each(updates, function (update, next) {
+				update.destroy(next);
+			}, done);
+		});
+
+		it(&apos;should not throw an error&apos;, function (done) {
+			profile.getPendingUpdates(function (err, res) {
+				should.not.exist(err);
+				done();
+			});
+		});
+
+		it(&apos;should associate the pending updates with the profile&apos;, function (done) {
+			profile.getPendingUpdates(function (err, res) {
+				profile.updates.pending.should.not.be.empty;
+				done();
+			});
+		});
+
+		it(&apos;should instantiate each update with the Update object&apos;, function (done) {
+			profile.getPendingUpdates(function (err, res) {
+				async.forEachOf(profile.updates.pending, function (update, index, next) {
+					update.should.be.an.instanceOf(Update);
+					next();
+				}, done);
+			});
+		});
+	});
+
+	describe(&apos;Method: getSentUpdates&apos;, function () {
+		before(function (done) {
+			this.timeout(30000);
+			async.waterfall([
+				function (callback) {
+					var updates = [];
+					async.times(5, function (n, next) {
+						var update = new Update({
+							profile_ids: [app.profile_id],
+							text: faker.lorem.sentences()
+						});
+						update.save(function () {
+							updates.push(update);
+							next();
+						});
+					}, function () {
+						callback(null, updates);
+					});
+				},
+				function (updates, callback) {
+					async.eachSeries(updates, function (update, next) {
+						update.share(next);
+					}, function () {
+						callback(null);
+					});
+				}
+			], function () {
+				done();
+			});
+		});
+
+		it(&apos;should not throw an error&apos;, function (done) {
+			profile.getSentUpdates(function (err, res) {
+				should.not.exist(err);
+				done();
+			});
+		});
+
+		it(&apos;should associate the sent updates with the profile&apos;, function (done) {
+			profile.getSentUpdates(function (err, res) {
+				profile.updates.sent.should.not.be.empty;
+				done();
+			});
+		});
+
+		it(&apos;should instantiate each update with the Update object&apos;, function (done) {
+			profile.getPendingUpdates(function (err, res) {
+				async.forEachOf(profile.updates.sent, function (update, index, next) {
+					update.should.be.an.instanceOf(Update);
+					next();
+				}, done);
+			});
+		});
+	});
+
+	describe(&apos;Method: getSchedules&apos;, function () {
+		it(&apos;should not throw an error&apos;, function (done) {
+			profile.getSchedules(function (err, res) {
+				should.not.exist(err);
+				done();
+			});
+		});
+
+		it(&apos;should associate the schedules with the profile&apos;, function (done) {
+			profile.getSchedules(function (err, res) {
+				profile.schedules.should.equal(res);
+				done();
+			});
+		});
+	});
+
+	describe(&apos;Method: setSchedules&apos;, function () {
+		var new_schedules = [{
+			days: [&apos;mon&apos;, &apos;tue&apos;, &apos;thu&apos;],
+			times: [&apos;12:45&apos;, &apos;15:30&apos;, &apos;17:43&apos;]
+		}];
+
+		it(&apos;should not throw an error&apos;, function (done) {
+			profile.setSchedules(new_schedules, function (err, res) {
+				should.not.exist(err);
+				done();
+			});
+		});
+
+		it(&apos;should update the schedules associated with the profile&apos;, function (done) {
+			profile.setSchedules(new_schedules, function (err, res) {
+				profile.schedules.should.equal(new_schedules);
+				done();
+			});
+		});
+	});
+
+	describe(&apos;Method: reorderUpdates&apos;, function () {
+		beforeEach(function (done) {
+			this.timeout(10000);
+			updates = [];
+
+			async.times(5, function (n, next) {
+				var update = new Update({
+					profile_ids: [app.profile_id],
+					text: faker.lorem.sentences()
+				});
+				update.save(function () {
+					updates.push(update);
+					next();
+				});
+			}, done);
+		});
+
+		afterEach(function (done) {
+			this.timeout(10000);
+			async.each(updates, function (update, next) {
+				update.destroy(next);
+			}, done);
+		});
+
+		it(&apos;should not throw an error&apos;, function (done) {
+			var shuffled_update_ids = [];
+
+			utils.shuffleArray(updates).forEach(function (update) {
+				shuffled_update_ids.push(update.id);
+			});
+
+			profile.reorderUpdates({
+				order: shuffled_update_ids
+			}, function (err, res) {
+				should.not.exist(err);
+				done();
+			});
+		});
+	});
+
+	describe(&apos;Method: shuffleUpdates&apos;, function () {
+		beforeEach(function (done) {
+			this.timeout(10000);
+
+			updates = [];
+
+			async.times(5, function (n, next) {
+				var update = new Update({
+					profile_ids: [app.profile_id],
+					text: faker.lorem.sentences()
+				});
+				update.save(function () {
+					updates.push(update);
+					next();
+				});
+			}, done);
+		});
+
+		afterEach(function (done) {
+			async.each(updates, function (update, next) {
+				update.destroy(next);
+			}, done);
+		});
+
+		it(&apos;should not throw an error&apos;, function (done) {
+			profile.shuffleUpdates(function (err, res) {
+				should.not.exist(err);
+				done();
+			});
+		});
+
+		it(&apos;should return successful&apos;, function (done) {
+			profile.shuffleUpdates(function (err, res) {
+				res.success.should.be.true;
+				done();
+			});
+		});
+	});
+});</code></pre>
+</div>
+
+<footer class="footer">
+  Generated by <a href="https://esdoc.org">ESDoc<span data-ice="esdocVersion">(0.1.4)</span></a>
+</footer>
+
+<script src="script/search_index.js"></script>
+<script src="script/search.js"></script>
+<script src="script/pretty-print.js"></script>
+<script src="script/inherited-summary.js"></script>
+<script src="script/test-summary.js"></script>
+<script src="script/inner-link.js"></script>
+<script src="script/patch-for-local.js"></script>
+</body>
+</html>
