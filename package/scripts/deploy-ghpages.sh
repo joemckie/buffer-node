@@ -1,11 +1,9 @@
 #!/bin/bash
 
 cd ../ &&
-git fetch origin gh-pages &&
-git checkout FETCH_HEAD &&
-cd package &&
-npm install &&
-grunt esdoc &&
+git checkout --orphan gh-pages &&
+npm install -g esdoc &&
+esdoc -c esdoc.json &&
 git config user.name "Travis-CI" &&
 git config user.email "travis@joemck.ie" &&
 git add -A . &&

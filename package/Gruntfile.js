@@ -28,22 +28,6 @@ module.exports = function(grunt) {
         }
       },
 
-      esdoc: {
-        dist: {
-          options: {
-            coverage: false,
-            source: './src',
-            destination: '../',
-            title: 'Buffer for Node Documentation',
-            test: {
-              type: 'mocha',
-              source: './tests',
-              includes: ['(.*).js$']
-            }
-          }
-        }
-      },
-
       mochaTest: {
         options: {
           clearRequireCache: true,
