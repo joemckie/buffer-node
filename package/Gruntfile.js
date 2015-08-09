@@ -31,14 +31,10 @@ module.exports = function(grunt) {
       mochaTest: {
         options: {
           clearRequireCache: true,
-          run: true,
-          require: [
-            'tests/globals'
-          ],
+          require: ['tests/globals'],
+          run: true
         },
-        all: {
-          src: ['tests/**/*.js'],
-        },
+        src: ['tests/**/*.js']
       },
 
       // Watch files and compile them when they change
@@ -74,6 +70,5 @@ module.exports = function(grunt) {
     ]);
 
     grunt.registerTask('compile', ['clean:dist', 'babel'])
-
     grunt.registerTask('test', ['env:test', 'mochaTest']);
 }

@@ -23,3 +23,4 @@ bin/*
 package/lib
 package/node_modules
 phantomjsdriver.log
+package/coverage

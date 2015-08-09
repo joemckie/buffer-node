@@ -14,7 +14,7 @@
   "devDependencies": {
     "babel": "^5.8.20",
     "chai": "^3.2.0",
-    "chromedriver": "^2.16.0",
+    "coveralls": "^2.11.3",
     "express": "^4.13.3",
     "faker": "^3.0.1",
     "grunt": "^0.4.5",
@@ -23,6 +23,13 @@
     "grunt-contrib-watch": "^0.6.1",
     "grunt-env": "^0.4.4",
     "grunt-mocha-test": "^0.12.7",
+    "isparta": "^3.0.3",
+    "istanbul": "^0.3.17",
+    "karma": "^0.13.8",
+    "karma-babel-preprocessor": "^5.2.1",
+    "karma-coverage": "douglasduteil/karma-coverage#next",
+    "karma-mocha": "^0.2.0",
+    "karma-phantomjs-launcher": "^0.2.1",
     "load-grunt-tasks": "^3.2.0",
     "mocha": "^2.2.5",
     "phantomjs": "^1.9.17",
@@ -34,7 +41,8 @@
     "compile": "babel -d lib/ src/",
     "prepublish": "npm run compile",
     "test": "grunt test",
-    "develop": "grunt develop"
+    "develop": "grunt develop",
+    "coverage": "babel-node node_modules/.bin/isparta cover --report text --report html node_modules/.bin/_mocha -- --recursive --compilers babel:babel/register --require=tests/globals tests"
   },
   "repository": {
     "type": "git",

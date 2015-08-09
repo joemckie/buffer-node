@@ -2,6 +2,7 @@ import test from 'selenium-webdriver/testing';
 import express from 'express';
 
 let client,
+    driver,
     server = express();
 
 before(function (done) {
@@ -17,8 +18,8 @@ after(function (done) {
 	});
 });
 
-test.describe('Core Suite', function () {
-	test.describe('Authentication', function () {
+describe('Core Suite', function () {
+	describe('Authentication', function () {
 		it('should authenticate the user when returning from the OAuth gateway', function (done) {
 			server.get('/authorize', function (req, res) {
 				res.send(`<a id="authorize_link" href="${BufferClient.getAuthorizationUrl(app.client_id, app.redirect_url)}">Authorize</a>`);
@@ -32,14 +33,13 @@ test.describe('Core Suite', function () {
 					authenticated: false
 				}, function (err, res) {
 					client._authenticated.should.be.true;
-					driver.quit();
 					done();
 				});
 			});
 
 			this.timeout(30000);
 
-			var driver = new seleniumWebdriver
+			driver = new seleniumWebdriver
 			  .Builder()
 			  .forBrowser('phantomjs')
 			  .build();
@@ -54,6 +54,7 @@ test.describe('Core Suite', function () {
 			driver.findElement(By.name('signin')).click();
 
 			driver.findElement(By.className('allow')).click();
+			driver.quit();
 		});
 
 		describe('Method: getAuthorizationUrl', function () {
