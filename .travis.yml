@@ -11,4 +11,6 @@ secure: "DHKMdirJD4ZAsnkCNXFQCYV2SwmF7Kqna5CqQkJYgjguXwK+PlXWzG+MvKG6Xs7jvoTPLdy
 before_install: cd package
 install: npm install
 script: npm run compile
-after_success: npm run coveralls
+after_success:
+  - npm run coveralls
+  - npm run documentation
