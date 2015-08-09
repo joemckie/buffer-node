@@ -34,9 +34,11 @@ module.exports = function(grunt) {
             coverage: false,
             source: './src',
             destination: './doc',
+            title: 'Buffer for Node Documentation',
             test: {
               type: 'mocha',
-              source: './tests'
+              source: './tests',
+              includes: ['(.*).js$']
             }
           }
         }
