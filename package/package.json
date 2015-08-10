@@ -38,7 +38,7 @@
     "time-grunt": "^1.2.1"
   },
   "scripts": {
-    "compile": "babel -d lib/ src/",
+    "compile": "rm -rf lib && babel -d lib/ src/",
     "prepublish": "npm run compile",
     "test": "grunt test",
     "develop": "grunt develop",
