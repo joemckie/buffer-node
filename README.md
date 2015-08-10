@@ -58,7 +58,7 @@ app.get('/deauthorize', function (req, res) {
 
 ## Documentation
 
-For full code documentation and examples, click [here](http://joemckie.github.io/buffer-node-docs).
+For full code documentation and examples, click [here](http://joemckie.github.io/buffer-node).
 
 ## Licence:
 
