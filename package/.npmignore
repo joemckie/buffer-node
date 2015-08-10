@@ -1,3 +1,7 @@
 src/
+scripts/
+
 Gruntfile.js
-.travis.yml
+.coveralls.yml
+.istanbul.yml
+karma.conf.js
