@@ -119,7 +119,8 @@ export default class Profile {
 
 	/**
 	 * Shuffles updates in the user's buffer at random
-	 * @param  {Function} callback - The callback to run when the request has been fulfilled
+	 * @param {Object}   params     - The parameters to send to the API
+	 * @param {Function} [callback] - The callback to run when the request has been fulfilled
 	 */
 	shuffleUpdates (params, callback = function () {}) {
 		if (typeof(params) === 'function') {
@@ -132,7 +133,7 @@ export default class Profile {
 
 	/**
 	 * Returns the schedules set for the current profile
-	 * @param  {Function} callback - The callback to run when the request has been fulfilled
+	 * @param  {Function} [callback] - The callback to run when the request has been fulfilled
 	 */
 	getSchedules (callback = function () {}) {
 		_bufferAPI.get(`profiles/${this.id}/schedules.json`, (err, res) => {
@@ -146,9 +147,8 @@ export default class Profile {
 
 	/**
 	 * Overwrites the schedules for the associated profile
-	 * @param  {Array}    schedules - The new schedules to send to the API
-	 * @param  {Function} callback  - The callback to run when the request has been fulfilled
-	 * @return {Function}   [description]
+	 * @param  {Array}    schedules  - The new schedules to send to the API
+	 * @param  {Function} [callback] - The callback to run when the request has been fulfilled
 	 */
 	setSchedules (schedules, callback = function () {}) {
 		_bufferAPI.post(`profiles/${this.id}/schedules/update.json`, {
