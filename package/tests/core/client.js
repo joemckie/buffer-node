@@ -33,11 +33,12 @@ describe('Core Suite', function () {
 					authenticated: false
 				}, function (err, res) {
 					client._authenticated.should.be.true;
+					client._access_token.should.not.equal(req.query.code);
 					done();
 				});
 			});
 
-			this.timeout(30000);
+			this.timeout(100000);
 
 			driver = new seleniumWebdriver
 			  .Builder()
