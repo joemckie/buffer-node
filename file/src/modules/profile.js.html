@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <base data-ice="baseUrl" href="../../../">
+  <title data-ice="title">src/modules/profile.js | Buffer for Node Documentation API Document</title>
+  <link type="text/css" rel="stylesheet" href="css/style.css">
+  <link type="text/css" rel="stylesheet" href="css/prettify-tomorrow.css">
+  <script src="script/prettify/prettify.js"></script>
+  
+  
+</head>
+<body class="layout-container">
+
+<header>
+  <a href="./">Home</a>
+  <a href="identifiers.html">Identifier</a>
+  <a href="source.html">Source</a>
+  <a href="test.html" data-ice="testLink">Test</a>
+  <a data-ice="repoURL" href="git+ssh://git@github.com/joemckie/buffer-node.git">Repository</a>
+  <div class="search-box">
+  <span>
+    <img src="./image/search.png">
+    <span class="search-input-edge"></span><input class="search-input"><span class="search-input-edge"></span>
+  </span>
+    <ul class="search-result"></ul>
+  </div>
+</header>
+
+<nav class="navigation" data-ice="nav"><div data-ice="classWrap">
+  <h2>Class</h2>
+  <ul>
+    
+  <li data-ice="classDoc"><span><a href="class/src/client.js~BufferClient.html">BufferClient</a></span></li>
+<li data-ice="classDoc"><span><a href="class/src/modules/profile.js~Profile.html">Profile</a></span></li>
+<li data-ice="classDoc"><span><a href="class/src/modules/update.js~Update.html">Update</a></span></li>
+<li data-ice="classDoc"><span><a href="class/src/utils.js~Utils.html">Utils</a></span></li>
+</ul>
+</div>
+
+
+
+
+
+
+
+
+
+
+</nav>
+
+<div class="content" data-ice="content"><h1 data-ice="title">src/modules/profile.js</h1>
+<pre class="source-code line-number"><code class="prettyprint linenums" data-ice="content">import utils from &apos;../utils&apos;;
+import Update from &apos;./update&apos;;
+import async from &apos;async&apos;;
+import Promise from &apos;promise&apos;;
+
+export default class Profile {
+	constructor (profile) {
+		this.updates = {
+			sent:    {},
+			pending: {}
+		}
+
+		this.promise = new Promise((resolve, reject) =&gt; {
+			if (typeof(profile) === &apos;string&apos;) {
+				// Instantiating the update from an ID
+				this.getByID(profile, function (err, res) {
+					if (!err) {
+						resolve(res);
+					} else {
+						reject(err);
+					}
+				});
+			} else {
+				// Instantiating the update from an object
+				resolve(profile);
+			}
+		}).then((profile) =&gt; {
+			// Map the profile to this object
+			utils.mapObject(this, profile);
+		});
+	}
+
+	get pending_updates () {
+		return this.updates.pending;
+	}
+
+	set pending_updates (value) {
+		this.updates.pending = value;
+	}
+
+	get sent_updates () {
+		return this.updates.sent;
+	}
+
+	set sent_updates (value) {
+		this.updates.sent = value;
+	}
+
+	/**
+	 * Gets a single profile by its ID
+	 * @param  {Integer}  profile_id - The ID of the profile to retrieve
+	 * @param  {Function} callback   - The callback to run when the request has been fulfilled
+	 */
+	getByID (profile_id, callback) {
+		_bufferAPI.get(`profiles/${profile_id}.json`, callback);
+	}
+
+	/**
+	 * Gets a list of pending updates for a given profile and associates them with this object
+	 * @param  {Object}   params   - API parameters to pass through to the URL
+	 * @param  {Function} callback - The callback to run when the request has been fulfilled
+	 */
+	getPendingUpdates (params, callback) {
+		if (typeof(params) === &apos;function&apos;) {
+			callback = params;
+			params   = &apos;&apos;;
+		}
+
+		_bufferAPI.get(`profiles/${this.id}/updates/pending.json`, params, (err, res) =&gt; {
+			if (!err) {
+				async.forEachOf(res.updates, function (update, index, next) {
+					res.updates[index] = new Update(update);
+					res.updates[index].promise.then(next);
+				}, (err) =&gt; {
+					this.pending_updates = res.updates;
+					callback(err, res);
+				});
+			} else {
+				callback(err, res);
+			}
+
+		});
+	}
+
+	/**
+	 * Gets a list of sent updates for a given profile and associates them with this object
+	 * @param  {Object}   params   - API parameters to pass through to the URL
+	 * @param  {Function} callback - The callback to run when the request has been fulfilled
+	 */
+	getSentUpdates (params, callback) {
+		if (typeof(params) === &apos;function&apos;) {
+			callback = params;
+			params   = &apos;&apos;;
+		}
+
+		_bufferAPI.get(`profiles/${this.id}/updates/sent.json`, params, (err, res) =&gt; {
+			if (!err) {
+				async.forEachOf(res.updates, function (update, index, next) {
+					res.updates[index] = new Update(update);
+					res.updates[index].promise.then(next);
+				}, (err) =&gt; {
+					this.sent_updates = res.updates;
+					callback(err, res);
+				});
+			} else {
+				callback(err, res);
+			}
+		});
+	}
+
+	/**
+	 * Reorders updates in the user&apos;s buffer, given a new order
+	 * @param  {Object}   params   - API parameters to pass through to the URL. &quot;updates&quot; must be present.
+	 * @param  {Function} callback - The callback to run when the request has been fulfilled
+	 */
+	reorderUpdates (params, callback) {
+		_bufferAPI.post(`profiles/${this.id}/updates/reorder.json`, params, callback);
+	}
+
+	/**
+	 * Shuffles updates in the user&apos;s buffer at random
+	 * @param {Object}   params     - The parameters to send to the API
+	 * @param {Function} [callback] - The callback to run when the request has been fulfilled
+	 */
+	shuffleUpdates (params, callback = function () {}) {
+		if (typeof(params) === &apos;function&apos;) {
+			callback = params;
+			params   = &apos;&apos;;
+		}
+
+		_bufferAPI.post(`profiles/${this.id}/updates/shuffle.json`, params, callback);
+	}
+
+	/**
+	 * Returns the schedules set for the current profile
+	 * @param  {Function} [callback] - The callback to run when the request has been fulfilled
+	 */
+	getSchedules (callback = function () {}) {
+		_bufferAPI.get(`profiles/${this.id}/schedules.json`, (err, res) =&gt; {
+			if (!err) {
+				this.schedules = res;
+			}
+
+			callback(err, res)
+		});
+	}
+
+	/**
+	 * Overwrites the schedules for the associated profile
+	 * @param  {Array}    schedules  - The new schedules to send to the API
+	 * @param  {Function} [callback] - The callback to run when the request has been fulfilled
+	 */
+	setSchedules (schedules, callback = function () {}) {
+		_bufferAPI.post(`profiles/${this.id}/schedules/update.json`, {
+			schedules: schedules
+		}, (err, res) =&gt; {
+			if (!err) {
+				this.schedules = schedules;
+			}
+
+			callback(err, res)
+		});
+	}
+}</code></pre>
+</div>
+
+<footer class="footer">
+  Generated by <a href="https://esdoc.org">ESDoc<span data-ice="esdocVersion">(0.2.1)</span></a>
+</footer>
+
+<script src="script/search_index.js"></script>
+<script src="script/search.js"></script>
+<script src="script/pretty-print.js"></script>
+<script src="script/inherited-summary.js"></script>
+<script src="script/test-summary.js"></script>
+<script src="script/inner-link.js"></script>
+<script src="script/patch-for-local.js"></script>
+</body>
+</html>

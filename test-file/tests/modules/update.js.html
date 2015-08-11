@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <base data-ice="baseUrl" href="../../../">
+  <title data-ice="title">tests/modules/update.js | Buffer for Node Documentation API Document</title>
+  <link type="text/css" rel="stylesheet" href="css/style.css">
+  <link type="text/css" rel="stylesheet" href="css/prettify-tomorrow.css">
+  <script src="script/prettify/prettify.js"></script>
+  
+  
+</head>
+<body class="layout-container">
+
+<header>
+  <a href="./">Home</a>
+  <a href="identifiers.html">Identifier</a>
+  <a href="source.html">Source</a>
+  <a href="test.html" data-ice="testLink">Test</a>
+  <a data-ice="repoURL" href="git+ssh://git@github.com/joemckie/buffer-node.git">Repository</a>
+  <div class="search-box">
+  <span>
+    <img src="./image/search.png">
+    <span class="search-input-edge"></span><input class="search-input"><span class="search-input-edge"></span>
+  </span>
+    <ul class="search-result"></ul>
+  </div>
+</header>
+
+<nav class="navigation" data-ice="nav"><div data-ice="classWrap">
+  <h2>Class</h2>
+  <ul>
+    
+  <li data-ice="classDoc"><span><a href="class/src/client.js~BufferClient.html">BufferClient</a></span></li>
+<li data-ice="classDoc"><span><a href="class/src/modules/profile.js~Profile.html">Profile</a></span></li>
+<li data-ice="classDoc"><span><a href="class/src/modules/update.js~Update.html">Update</a></span></li>
+<li data-ice="classDoc"><span><a href="class/src/utils.js~Utils.html">Utils</a></span></li>
+</ul>
+</div>
+
+
+
+
+
+
+
+
+
+
+</nav>
+
+<div class="content" data-ice="content"><h1 data-ice="title">tests/modules/update.js</h1>
+<pre class="source-code line-number"><code class="prettyprint linenums" data-ice="content">describe(&apos;Module: Update&apos;, function () {
+	let client, update;
+
+	this.timeout(3000);
+
+	describe(&apos;Instantiation&apos;, function () {
+		afterEach(function (done) {
+			update = undefined;
+			done();
+		});
+
+		it(&apos;should be able to be instantiated with an update ID&apos;, function (done) {
+			update = new Update({
+				id: &apos;1&apos;,
+				profile_ids: [app.profile_id],
+				text: faker.lorem.sentences()
+			});
+
+			update.save(function (err, res) {
+				var queried_update = new Update(res.updates[0].id);
+				queried_update.promise.then(() =&gt; {
+					queried_update.id.should.equal(res.updates[0].id);
+
+					update.destroy();
+					queried_update.destroy();
+
+					done();
+				});
+			});
+		});
+
+		it(&apos;should be able to be instantiated with an update object&apos;, function (done) {
+			update = new Update({
+				id: &apos;1&apos;,
+				profile_ids: [app.profile_id],
+				text: faker.lorem.sentences()
+			});
+			update.promise.then(function () {
+				should.exist(update.id);
+				done();
+			});
+		})
+	});
+
+	describe(&apos;Method: save&apos;, function () {
+		beforeEach(function (done) {
+			update = new Update({
+				profile_ids: [app.profile_id],
+				text: faker.lorem.sentences()
+			});
+
+			done();
+		});
+
+		afterEach(function (done) {
+			update.destroy(done);
+		});
+
+		it(&apos;should not throw an error&apos;, function (done ) {
+			update.save(function (err, res) {
+				should.not.exist(err);
+				res.success.should.be.true;
+				done();
+			});
+		});
+
+		it(&apos;should assign the saved ID to the Update object&apos;, function (done) {
+			update.save(function (err, res) {
+				should.exist(update.id);
+				done();
+			});
+		});
+	});
+
+	describe(&apos;Method: destroy&apos;, function () {
+		beforeEach(function (done) {
+			update = new Update({
+				profile_ids: [app.profile_id],
+				text: faker.lorem.sentences()
+			});
+			update.save(done);
+		});
+
+		it(&apos;should not throw an error&apos;, function (done) {
+			update.destroy(function (err, res) {
+				should.not.exist(err);
+				done();
+			});
+		});
+
+		it(&apos;should add an attribute to flag the update as destroyed&apos;, function (done) {
+			update.destroy(function (err, res) {
+				should.exist(update.destroyed);
+				done();
+			});
+		});
+	});
+
+	describe(&apos;Method: edit&apos;, function () {
+		var new_params = {
+			text: &apos;Edited text&apos;
+		};
+
+		beforeEach(function (done) {
+			update = new Update({
+				profile_ids: [app.profile_id],
+				text: faker.lorem.sentences()
+			});
+
+			update.save(done);
+		});
+
+		afterEach(function (done) {
+			update.destroy(done);
+		});
+
+		it(&apos;should not throw an error&apos;, function (done) {
+			update.edit(new_params, function (err, res) {
+				should.not.exist(err);
+				res.success.should.be.true;
+				done();
+			});
+		});
+
+		it(&apos;should change edit the update object to reflect the new values&apos;, function (done) {
+			update.edit(new_params, function (err, res) {
+				update.text.should.equal(new_params.text);
+				done();
+			});
+		});
+	});
+
+	describe(&apos;Method: share&apos;, function () {
+		beforeEach(function (done) {
+			update = new Update({
+				profile_ids: [app.profile_id],
+				text: faker.lorem.sentences()
+			});
+
+			update.save(done);
+		});
+
+		it(&apos;should not throw an error&apos;, function (done) {
+			update.share(function (err, res) {
+				should.not.exist(err);
+				done();
+			});
+		});
+
+		it(&apos;should retrieve the shared update and map it to the current object&apos;, function (done) {
+			update.share(function (err, res) {
+				update.shared_now.should.be.true;
+				update.status.should.equal(&apos;sent&apos;);
+				update.service_link.should.not.be.empty;
+				done();
+			});
+		});
+	});
+
+	describe(&apos;Method: getInteractions&apos;, function () {
+		beforeEach(function (done) {
+			update = new Update({
+				profile_ids: [app.profile_id],
+				text: faker.lorem.sentences()
+			});
+
+			update.save(done);
+		});
+
+		afterEach(function (done) {
+			update.destroy(done);
+		});
+
+		it(&apos;should not throw an error&apos;, function (done) {
+			update.getInteractions(&apos;retweet&apos;, {}, function (err, res) {
+				should.not.exist(err);
+				done();
+			});
+		});
+	});
+
+	describe(&apos;Method: moveToTop&apos;, function () {
+		beforeEach(function (done) {
+			update = new Update({
+				profile_ids: [app.profile_id],
+				text: faker.lorem.sentences()
+			});
+
+			update.save(done);
+		});
+
+		afterEach(function (done) {
+			update.destroy(done);
+		});
+
+		it(&apos;should not throw an error&apos;, function (done) {
+			update.moveToTop(function (err, res) {
+				should.not.exist(err);
+				done();
+			});
+		});
+	});
+});</code></pre>
+</div>
+
+<footer class="footer">
+  Generated by <a href="https://esdoc.org">ESDoc<span data-ice="esdocVersion">(0.2.1)</span></a>
+</footer>
+
+<script src="script/search_index.js"></script>
+<script src="script/search.js"></script>
+<script src="script/pretty-print.js"></script>
+<script src="script/inherited-summary.js"></script>
+<script src="script/test-summary.js"></script>
+<script src="script/inner-link.js"></script>
+<script src="script/patch-for-local.js"></script>
+</body>
+</html>

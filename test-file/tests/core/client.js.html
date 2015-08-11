@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <base data-ice="baseUrl" href="../../../">
+  <title data-ice="title">tests/core/client.js | Buffer for Node Documentation API Document</title>
+  <link type="text/css" rel="stylesheet" href="css/style.css">
+  <link type="text/css" rel="stylesheet" href="css/prettify-tomorrow.css">
+  <script src="script/prettify/prettify.js"></script>
+  
+  
+</head>
+<body class="layout-container">
+
+<header>
+  <a href="./">Home</a>
+  <a href="identifiers.html">Identifier</a>
+  <a href="source.html">Source</a>
+  <a href="test.html" data-ice="testLink">Test</a>
+  <a data-ice="repoURL" href="git+ssh://git@github.com/joemckie/buffer-node.git">Repository</a>
+  <div class="search-box">
+  <span>
+    <img src="./image/search.png">
+    <span class="search-input-edge"></span><input class="search-input"><span class="search-input-edge"></span>
+  </span>
+    <ul class="search-result"></ul>
+  </div>
+</header>
+
+<nav class="navigation" data-ice="nav"><div data-ice="classWrap">
+  <h2>Class</h2>
+  <ul>
+    
+  <li data-ice="classDoc"><span><a href="class/src/client.js~BufferClient.html">BufferClient</a></span></li>
+<li data-ice="classDoc"><span><a href="class/src/modules/profile.js~Profile.html">Profile</a></span></li>
+<li data-ice="classDoc"><span><a href="class/src/modules/update.js~Update.html">Update</a></span></li>
+<li data-ice="classDoc"><span><a href="class/src/utils.js~Utils.html">Utils</a></span></li>
+</ul>
+</div>
+
+
+
+
+
+
+
+
+
+
+</nav>
+
+<div class="content" data-ice="content"><h1 data-ice="title">tests/core/client.js</h1>
+<pre class="source-code line-number"><code class="prettyprint linenums" data-ice="content">import test from &apos;selenium-webdriver/testing&apos;;
+import express from &apos;express&apos;;
+
+let client,
+    driver,
+    server = express();
+
+before(function (done) {
+	server.listen(3000, done);
+});
+
+after(function (done) {
+	// Deauthorize the user AFTER all tests have been ran,
+	// or else authentication will fail...
+	client.deauthorizeUser(function (err, res) {
+		should.not.exist(err);
+		done();
+	});
+});
+
+describe(&apos;Core Suite&apos;, function () {
+	describe(&apos;Authentication&apos;, function () {
+		it(&apos;should authenticate the user when returning from the OAuth gateway&apos;, function (done) {
+			server.get(&apos;/authorize&apos;, function (req, res) {
+				res.send(`&lt;a id=&quot;authorize_link&quot; href=&quot;${BufferClient.getAuthorizationUrl(app.client_id, app.redirect_url)}&quot;&gt;Authorize&lt;/a&gt;`);
+			})
+			server.get(&apos;/verify&apos;, function (req, res) {
+	 			client = new BufferClient({
+					access_token: req.query.code,
+					client_id: app.client_id,
+					client_secret: app.client_secret,
+					redirect_url: app.redirect_url,
+					authenticated: false
+				}, function (err, res) {
+					client._authenticated.should.be.true;
+					client._access_token.should.not.equal(req.query.code);
+
+					// Clear out any previously queued updates before running tests
+					client.getProfiles(function (err, res) {
+						var profile = client.getProfile(app.profile_id);
+						profile.getPendingUpdates(function (err, res) {
+							async.forEachOf(profile.pending_updates, function (update, key, next) {
+								update.destroy(next);
+							}, function () {
+								done();
+							});
+						});
+					});
+				});
+			});
+
+			this.timeout(100000);
+
+			driver = new seleniumWebdriver
+			  .Builder()
+			  .forBrowser(&apos;phantomjs&apos;)
+			  .build();
+
+			// Click through to the authorization page
+			driver.get(&apos;http://localhost:3000/authorize&apos;);
+			driver.findElement(By.tagName(&apos;a&apos;)).click();
+
+			// Log in to Buffer
+			driver.findElement(By.id(&apos;email&apos;)).sendKeys(&apos;buffertest@joemck.ie&apos;);
+			driver.findElement(By.id(&apos;password&apos;)).sendKeys(&apos;password&apos;);
+			driver.findElement(By.name(&apos;signin&apos;)).click();
+
+			driver.findElement(By.className(&apos;allow&apos;)).click();
+			driver.quit();
+		});
+
+		describe(&apos;Method: getAuthorizationUrl&apos;, function () {
+			it(&apos;should include the client ID&apos;, function (done) {
+				BufferClient.getAuthorizationUrl(app.client_id, app.redirect_url).should.include(app.client_id);
+				done();
+			});
+			it(&apos;should include the redirect URI&apos;, function (done) {
+				BufferClient.getAuthorizationUrl(app.client_id, app.redirect_url).should.include(encodeURIComponent(app.redirect_url));
+				done();
+			});
+		});
+	});
+
+	describe(&apos;Instantiation&apos;, function () {
+		it(&apos;should assign the authenticated flag&apos;, function (done) {
+			client.should.have.property(&apos;_authenticated&apos;);
+			done();
+		});
+		it(&apos;should assign the client ID&apos;, function (done) {
+			client.should.have.property(&apos;_client_id&apos;);
+			done();
+		});
+		it(&apos;should assign the client secret&apos;, function (done) {
+			client.should.have.property(&apos;_client_secret&apos;);
+			done();
+		});
+		it(&apos;should assign the access token&apos;, function (done) {
+			client.should.have.property(&apos;_access_token&apos;);
+			done();
+		});
+		it(&apos;should assign the redirect_url&apos;, function (done) {
+			client.should.have.property(&apos;_access_token&apos;);
+			done();
+		});
+		it(&apos;should assign the API version&apos;, function (done) {
+			client.should.have.property(&apos;_api_version&apos;);
+			done();
+		});
+		it(&apos;should assign the API protocol as HTTPS&apos;, function (done) {
+			client.should.have.property(&apos;_protocol&apos;, &apos;https&apos;);
+			done();
+		});
+		it(&apos;should assign the hostname as &quot;api.bufferapp.com&quot;&apos;, function (done) {
+			client.should.have.property(&apos;_hostname&apos;, &apos;api.bufferapp.com&apos;);
+			done();
+		});
+		it(&apos;should assign the host in the format &quot;#{protocol}://#{hostname}&quot;&apos;, function (done) {
+			client.should.have.property(&apos;_host&apos;, `${client._protocol}://${client._hostname}`);
+			done();
+		});
+		it(&apos;should set the options to be passed to querystring.stringify()&apos;, function (done) {
+			client.should.have.property(&apos;_stringify_options&apos;);
+			client._stringify_options.should.eql({
+				arrayFormat: &apos;index&apos;
+			});
+			done();
+		});
+		it(&apos;should generate the OAuth client&apos;, function(done) {
+			client.should.have.property(&apos;client&apos;);
+			done();
+		});
+		it(&apos;should retrieve the Buffer configuration&apos;, function (done) {
+			client.should.have.property(&apos;config&apos;);
+			done();
+		});
+	});
+
+	describe(&apos;API Interaction&apos;, function () {
+		describe(&apos;Method: get&apos;, function () {
+			it(&apos;should respond&apos;, function (done) {
+				expect(client).to.respondTo(&apos;get&apos;);
+				done();
+			});
+			it(&apos;should not throw an error&apos;, function (done) {
+				client.get(&apos;info/configuration.json&apos;, function (err, res) {
+					should.not.exist(err);
+					done();
+				});
+			});
+			it(&apos;should use the GET method&apos;, function (done) {
+				client.get(&apos;info/configuration.json&apos;, function (err, res, response) {
+					response.req.method.should.equal(&apos;GET&apos;);
+					done();
+				});
+			});
+		});
+		describe(&apos;Method: post&apos;, function () {
+			it(&apos;should respond&apos;, function (done) {
+				expect(client).to.respondTo(&apos;post&apos;);
+				done();
+			});
+			it(&apos;should not throw an error&apos;, function (done) {
+				client.post(`profiles/${app.profile_id}/updates/shuffle.json`, function (err, res, response) {
+					should.not.exist(err);
+					done();
+				});
+			});
+			it(&apos;should use the POST method&apos;, function (done) {
+				client.post(`profiles/${app.profile_id}/updates/shuffle.json`, function (err, res, response) {
+					response.req.method.should.equal(&apos;POST&apos;);
+					done();
+				});
+			});
+		});
+	});
+
+	describe(&apos;Profiles&apos;, function () {
+		describe(&apos;Method: getProfiles&apos;, function () {
+			it(&apos;should respond&apos;, function (done) {
+				expect(client).to.respondTo(&apos;getProfiles&apos;);
+				done();
+			});
+			it(&apos;should not throw an error&apos;, function (done) {
+				client.getProfiles(function (err, res) {
+					should.not.exist(err);
+					done();
+				});
+			});
+			it(&apos;should associate the profiles with the client&apos;, function (done) {
+				client.getProfiles(function (err, res) {
+					client._profiles.should.exist;
+					done();
+				});
+			});
+			it(&apos;should instantiate each profile with the Profile object&apos;, function (done) {
+				client._profiles[app.profile_id].should.be.an.instanceOf(Profile);
+				done();
+			});
+		});
+
+		describe(&apos;Method: getProfile&apos;, function () {
+			it(&apos;should respond&apos;, function (done) {
+				expect(client).to.respondTo(&apos;getProfile&apos;);
+				done();
+			});
+			it(&apos;should retrieve the list of profiles&apos;, function (done) {
+				client.getProfile(app.profile_id).should.be.instanceOf(Profile);
+				done();
+			});
+		});
+	});
+});</code></pre>
+</div>
+
+<footer class="footer">
+  Generated by <a href="https://esdoc.org">ESDoc<span data-ice="esdocVersion">(0.2.1)</span></a>
+</footer>
+
+<script src="script/search_index.js"></script>
+<script src="script/search.js"></script>
+<script src="script/pretty-print.js"></script>
+<script src="script/inherited-summary.js"></script>
+<script src="script/test-summary.js"></script>
+<script src="script/inner-link.js"></script>
+<script src="script/patch-for-local.js"></script>
+</body>
+</html>

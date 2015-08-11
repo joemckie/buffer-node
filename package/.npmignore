@@ -1,0 +1,7 @@
+src/
+scripts/
+
+Gruntfile.js
+.coveralls.yml
+.istanbul.yml
+karma.conf.js

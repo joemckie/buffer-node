@@ -1,0 +1,3427 @@
+[
+  {
+    "kind": "file",
+    "static": true,
+    "variation": null,
+    "name": "src/client.js",
+    "memberof": null,
+    "longname": "src/client.js",
+    "access": null,
+    "description": null,
+    "lineNumber": 1,
+    "content": "import {OAuth, OAuthEcho, OAuth2} from 'oauth';\nimport querystring from 'qs';\nimport Update from './modules/update';\nimport Profile from './modules/profile';\nimport Promise from 'promise';\n\nexport default class BufferClient {\n\t/**\n\t * Builds the BufferClient class\n\t * @param {String}  params - The access token associated with the registered app\n\t * @param {Boolean} [params.authenticated] - Flag to determine whether the user has been authenticated or not. If false, a long-lived access token will be generated and assigned upon instantiation.\n\t * @param {String}  params.client_id - The client ID of your Buffer application\n\t * @param {String}  params.client_secret - The client secret of your Buffer application\n\t * @param {String}  params.access_token - The access token for the user. If the `authentication` parameter is false, this will be overwritten by the `getAccessToken` method.\n\t * @param {String}  params.redirect_url - The redirection URL for your Buffer application\n\t * @param {Function} [callback] - The callback to run when the request has been fulfilled\n\t * @example <caption>Simple instantiation, no authentication needed. E.g. for a user that has already authenticated their account</caption>\n\t * new BufferClient({\n\t *   access_token: '<your_access_token>',\n\t *   client_id: '<your_client_id>',\n\t *   client_secret: '<your_client_secret>',\n\t *   redirect_url: '<your_redirection_url>'\n\t * });\n\t * @example <caption>Force access_token generation with the `authentication` flag</caption>\n\t * new BufferClient({\n\t *   access_token: '<your_access_token>',\n\t *   client_id: '<your_client_id>',\n\t *   client_secret: '<your_client_secret>',\n\t *   redirect_url: '<your_redirection_url>',\n\t *   authenticated: false\n\t * }, function (err, res) {\n\t *   // Do something here\n\t * });\n\t */\n\tconstructor (params, callback = function () {}) {\n\t\tthis._authenticated = typeof(params.authenticated) !== 'undefined' ? params.authenticated : true;\n\t\tthis._client_id = params.client_id;\n\t\tthis._client_secret = params.client_secret;\n\t\tthis._access_token = params.access_token;\n\t\tthis._redirect_url = params.redirect_url;\n\t\tthis._api_version = '1';\n\t\tthis._protocol = 'https';\n\t\tthis._hostname = 'api.bufferapp.com';\n\t\tthis._host = `${this._protocol}://${this._hostname}`;\n\t\tthis._stringify_options = {\n\t\t\tarrayFormat: 'index'\n\t\t};\n\n\t\t/**\n\t\t * The Buffer configuration retrieved from the /info/configuration.json endpoint\n\t\t * @type {Object}\n\t\t */\n\t\tthis.config = {};\n\n\t\t/**\n\t\t * The OAuth2 client that will be used to automatically authenticate API URLs\n\t\t * @type {Object}\n\t\t */\n\t\tthis.client = new OAuth2(\n\t\t\tthis._client_id,\n\t\t\tthis._client_secret,\n\t\t\t`${this._host}/${this._api_version}/`,\n\t\t\t'oauth2/authorize',\n\t\t\t'oauth2/token.json',\n\t\t\tnull\n\t\t);\n\n\t\t/**\n\t\t * A promise that will return after the BufferClient instance has been built\n\t\t * @type {Promise}\n\t\t */\n\t\tthis.promise = new Promise((resolve, reject) => {\n\t\t\tif (!this._authenticated) {\n\t\t\t\t// If a user hasn't authorized the client for use of their account,\n\t\t\t\t// we need to get a permanent access token before interacting with the API\n\t\t\t\tthis.getAccessToken(this._access_token, (err, res) => {\n\t\t\t\t\tif (res) {\n\t\t\t\t\t\tthis._access_token = res;\n\t\t\t\t\t\tthis._authenticated = true;\n\t\t\t\t\t\tresolve();\n\t\t\t\t\t} else {\n\t\t\t\t\t\treject();\n\t\t\t\t\t}\n\t\t\t\t});\n\t\t\t} else {\n\t\t\t\tresolve();\n\t\t\t}\n\t\t}).then(() => {\n\t\t\tthis.getConfiguration((err, res) => {\n\t\t\t\tif (!err) {\n\t\t\t\t\tglobal._bufferAPI = this;\n\t\t\t\t\tthis.config = res;\n\t\t\t\t}\n\n\t\t\t\tcallback(err, res);\n\t\t\t});\n\t\t});\n\t}\n\n\t/**\n\t * Queries an API endpoint using the GET method\n\t * @param  {String}   endpoint - The API endpoint to query. This should not be the full API URL. Example: 'users.json'\n\t * @param  {Object}   params   - A list of params to be appended to the URL. If omitted, the default Buffer API attributes will be used.\n\t * @param  {Function} callback - The callback to run when the request has been fulfilled\n\t * @example <caption>Using the optional `params` parameter:</caption>\n\t * this.get('profiles/4eb854340acb04e870000010/updates/sent.json', {\n\t * \tpage: 2,\n\t * \tcount: 100\n\t * }, function (err, res) {\n\t * \t// Do something\n\t * });\n\t * @example <caption>Omitting the optional `params` parameter</caption>\n\t * this.get('profiles/4eb854340acb04e870000010/updates/sent.json', function (err, res) {\n\t * \t// Do something\n\t * });\n\t */\n\tget (endpoint, params, callback) {\n\t\tif (typeof(params) === 'function') {\n\t\t\tcallback = params;\n\t\t\tparams = '';\n\t\t}\n\n\t\tif (typeof(params) === 'object') {\n\t\t\tparams = `?${querystring.stringify(params, this._stringify_options)}`;\n\t\t}\n\n\t\tthis.client.get(`${this._host}/${this._api_version}/${endpoint}${params}`, this._access_token, function (err, res, response) {\n\t\t\tif (res) {\n\t\t\t\tres = JSON.parse(res);\n\t\t\t}\n\n\t\t\tcallback(err, res, response);\n\t\t});\n\t}\n\n\t/**\n\t * Queries an API endpoint using the POST method\n\t * @param  {String}   endpoint - The API endpoint to query. This should not be the full API URL. Example: 'users.json'\n\t * @param  {Object}   params   - A list of params to be appended to the URL. If omitted, the default Buffer API attributes will be used.\n\t * @param  {Function} callback - The callback to run when the request has been fulfilled\n\t * @example <caption>Using the optional `params` parameter:</caption>\n\t * this.post('profiles/4eb854340acb04e870000010/schedules/update.json', { ... }, function (err, res) {\n\t * \t// Do something\n\t * });\n\t * @example <caption>Omitting the optional `params` parameter</caption>\n\t * this.post('user/deauthorize.json', function (err, res) {\n\t * \t// Do something\n\t * });\n\t */\n\tpost (endpoint, params, callback = null) {\n\t\tvar post_headers = {\n\t\t\t'Content-Type': 'application/x-www-form-urlencoded'\n\t\t};\n\n\t\tif (typeof(params) === 'function') {\n\t\t\tcallback = params;\n\t\t\tparams   = '';\n\t\t}\n\n\t\tif (typeof(params) === 'object') {\n\t\t\tparams = querystring.stringify(params, this._stringify_options);\n\t\t}\n\n\t\tthis.client._request('POST', `${this._host}/${this._api_version}/${endpoint}`, post_headers, params, this._access_token, function (err, res, response) {\n\t\t\tif (res) {\n\t\t\t\tres = JSON.parse(res);\n\t\t\t}\n\n\t\t\tcallback(err, res, response);\n\t\t});\n\t}\n\n\t/**\n\t * Retrieves the current Buffer configuration\n\t * @param  {Function} callback - The callback to run when the request has been fulfilled\n\t * @example\n\t * // ...\n\t * client.getConfiguration(function (err, res) {\n\t *   // Do something\n\t * });\n\t */\n\tgetConfiguration (callback) {\n\t\tthis.get('info/configuration.json', callback);\n\t}\n\n\t/**\n\t * Gets a list of profiles associated with the authenticated user\n\t * @param  {Function} callback - The callback to run when the request has been fulfilled\n\t */\n\tgetProfiles (callback) {\n\t\tthis.promise.then(() => {\n\t\t\tthis.get('profiles.json', (err, res) => {\n\t\t\t\tif (!err) {\n\t\t\t\t\tthis._profiles = {};\n\t\t\t\t\tasync.eachSeries(res, (profile, next) => {\n\t\t\t\t\t\tthis._profiles[profile.id] = new Profile(profile);\n\t\t\t\t\t\tthis._profiles[profile.id].promise.then(next);\n\t\t\t\t\t}, function () {\n\t\t\t\t\t\tcallback(err, res)\n\t\t\t\t\t});\n\t\t\t\t}\n\t\t\t});\n\t\t});\n\t}\n\n\t/**\n\t * Returns a profile object with a given ID.\n\t * Note that this does not query the API, so a list of profiles must have been retrieved beforehand.\n\t * @param  {String} profile_id - The ID of the profile to retrieve\n\t * @return {Object}            - The queried profile object\n\t */\n\tgetProfile (profile_id) {\n\t\treturn this._profiles[profile_id];\n\t}\n\n\t/**\n\t * Revokes access for the Buffer Client to access the API on behalf of the currently logged in user\n\t * @param  {Function} callback - The callback to run when the request has been fulfilled\n\t */\n\tdeauthorizeUser (callback) {\n\t\tthis.post('user/deauthorize.json', (err, res) => {\n\t\t\tthis._profiles = {};\n\t\t\tthis._authenticated = false;\n\n\t\t\tcallback(err, res);\n\t\t});\n\t}\n\n\t/**\n\t * Gets a permanent access token when authenticating the user.\n\t * @param  {String}   access_token - The temporary access token assigned when passing through the OAuth gateway\n\t * @param  {Function} callback     - The callback to run when the request has been fulfilled\n\t */\n\tgetAccessToken (access_token, callback) {\n\t\tthis.client.getOAuthAccessToken(access_token, {\n\t\t\tredirect_uri: this._redirect_url,\n\t\t\tgrant_type: 'authorization_code'\n\t\t}, callback);\n\t}\n\n\t/**\n\t * Gets the authorization URL for the current app\n\t * @param  {String} client_id    - The client ID you were assigned when registering your Buffer application\n\t * @param  {String} redirect_url - The redirect URL you set when registering your Buffer application\n\t */\n\tstatic getAuthorizationUrl (client_id, redirect_url) {\n\t\treturn new OAuth2(\n\t\t\tclient_id,\n\t\t\t'',\n\t\t\t'https://buffer.com/',\n\t\t\t'oauth2/authorize',\n\t\t\t'oauth2/token',\n\t\t\tnull\n\t\t).getAuthorizeUrl({\n\t\t\tredirect_uri: redirect_url,\n\t\t\tresponse_type: 'code'\n\t\t});\n\t}\n}"
+  },
+  {
+    "kind": "class",
+    "static": true,
+    "variation": null,
+    "name": "BufferClient",
+    "memberof": "src/client.js",
+    "longname": "src/client.js~BufferClient",
+    "access": null,
+    "export": true,
+    "importPath": "buffer-node-api/src/client.js",
+    "importStyle": "BufferClient",
+    "description": null,
+    "lineNumber": 7,
+    "undocument": true,
+    "interface": false
+  },
+  {
+    "kind": "constructor",
+    "static": false,
+    "variation": null,
+    "name": "constructor",
+    "memberof": "src/client.js~BufferClient",
+    "longname": "src/client.js~BufferClient#constructor",
+    "access": null,
+    "description": "Builds the BufferClient class",
+    "examples": [
+      "<caption>Simple instantiation, no authentication needed. E.g. for a user that has already authenticated their account</caption>\nnew BufferClient({\n  access_token: '<your_access_token>',\n  client_id: '<your_client_id>',\n  client_secret: '<your_client_secret>',\n  redirect_url: '<your_redirection_url>'\n});",
+      "<caption>Force access_token generation with the `authentication` flag</caption>\nnew BufferClient({\n  access_token: '<your_access_token>',\n  client_id: '<your_client_id>',\n  client_secret: '<your_client_secret>',\n  redirect_url: '<your_redirection_url>',\n  authenticated: false\n}, function (err, res) {\n  // Do something here\n});"
+    ],
+    "lineNumber": 35,
+    "params": [
+      {
+        "nullable": null,
+        "types": [
+          "String"
+        ],
+        "spread": false,
+        "optional": false,
+        "name": "params",
+        "description": "The access token associated with the registered app"
+      },
+      {
+        "nullable": null,
+        "types": [
+          "Boolean"
+        ],
+        "spread": false,
+        "optional": true,
+        "name": "params.authenticated",
+        "description": "Flag to determine whether the user has been authenticated or not. If false, a long-lived access token will be generated and assigned upon instantiation."
+      },
+      {
+        "nullable": null,
+        "types": [
+          "String"
+        ],
+        "spread": false,
+        "optional": false,
+        "name": "params.client_id",
+        "description": "The client ID of your Buffer application"
+      },
+      {
+        "nullable": null,
+        "types": [
+          "String"
+        ],
+        "spread": false,
+        "optional": false,
+        "name": "params.client_secret",
+        "description": "The client secret of your Buffer application"
+      },
+      {
+        "nullable": null,
+        "types": [
+          "String"
+        ],
+        "spread": false,
+        "optional": false,
+        "name": "params.access_token",
+        "description": "The access token for the user. If the `authentication` parameter is false, this will be overwritten by the `getAccessToken` method."
+      },
+      {
+        "nullable": null,
+        "types": [
+          "String"
+        ],
+        "spread": false,
+        "optional": false,
+        "name": "params.redirect_url",
+        "description": "The redirection URL for your Buffer application"
+      },
+      {
+        "nullable": null,
+        "types": [
+          "Function"
+        ],
+        "spread": false,
+        "optional": true,
+        "name": "callback",
+        "description": "The callback to run when the request has been fulfilled"
+      }
+    ],
+    "generator": false
+  },
+  {
+    "kind": "member",
+    "static": false,
+    "variation": null,
+    "name": "_authenticated",
+    "memberof": "src/client.js~BufferClient",
+    "longname": "src/client.js~BufferClient#_authenticated",
+    "access": null,
+    "description": null,
+    "lineNumber": 36,
+    "undocument": true,
+    "type": {
+      "types": [
+        "*"
+      ]
+    }
+  },
+  {
+    "kind": "member",
+    "static": false,
+    "variation": null,
+    "name": "_client_id",
+    "memberof": "src/client.js~BufferClient",
+    "longname": "src/client.js~BufferClient#_client_id",
+    "access": null,
+    "description": null,
+    "lineNumber": 37,
+    "undocument": true,
+    "type": {
+      "types": [
+        "*"
+      ]
+    }
+  },
+  {
+    "kind": "member",
+    "static": false,
+    "variation": null,
+    "name": "_client_secret",
+    "memberof": "src/client.js~BufferClient",
+    "longname": "src/client.js~BufferClient#_client_secret",
+    "access": null,
+    "description": null,
+    "lineNumber": 38,
+    "undocument": true,
+    "type": {
+      "types": [
+        "*"
+      ]
+    }
+  },
+  {
+    "kind": "member",
+    "static": false,
+    "variation": null,
+    "name": "_access_token",
+    "memberof": "src/client.js~BufferClient",
+    "longname": "src/client.js~BufferClient#_access_token",
+    "access": null,
+    "description": null,
+    "lineNumber": 39,
+    "undocument": true,
+    "type": {
+      "types": [
+        "*"
+      ]
+    }
+  },
+  {
+    "kind": "member",
+    "static": false,
+    "variation": null,
+    "name": "_redirect_url",
+    "memberof": "src/client.js~BufferClient",
+    "longname": "src/client.js~BufferClient#_redirect_url",
+    "access": null,
+    "description": null,
+    "lineNumber": 40,
+    "undocument": true,
+    "type": {
+      "types": [
+        "*"
+      ]
+    }
+  },
+  {
+    "kind": "member",
+    "static": false,
+    "variation": null,
+    "name": "_api_version",
+    "memberof": "src/client.js~BufferClient",
+    "longname": "src/client.js~BufferClient#_api_version",
+    "access": null,
+    "description": null,
+    "lineNumber": 41,
+    "undocument": true,
+    "type": {
+      "types": [
+        "string"
+      ]
+    }
+  },
+  {
+    "kind": "member",
+    "static": false,
+    "variation": null,
+    "name": "_protocol",
+    "memberof": "src/client.js~BufferClient",
+    "longname": "src/client.js~BufferClient#_protocol",
+    "access": null,
+    "description": null,
+    "lineNumber": 42,
+    "undocument": true,
+    "type": {
+      "types": [
+        "string"
+      ]
+    }
+  },
+  {
+    "kind": "member",
+    "static": false,
+    "variation": null,
+    "name": "_hostname",
+    "memberof": "src/client.js~BufferClient",
+    "longname": "src/client.js~BufferClient#_hostname",
+    "access": null,
+    "description": null,
+    "lineNumber": 43,
+    "undocument": true,
+    "type": {
+      "types": [
+        "string"
+      ]
+    }
+  },
+  {
+    "kind": "member",
+    "static": false,
+    "variation": null,
+    "name": "_host",
+    "memberof": "src/client.js~BufferClient",
+    "longname": "src/client.js~BufferClient#_host",
+    "access": null,
+    "description": null,
+    "lineNumber": 44,
+    "undocument": true,
+    "type": {
+      "types": [
+        "*"
+      ]
+    }
+  },
+  {
+    "kind": "member",
+    "static": false,
+    "variation": null,
+    "name": "_stringify_options",
+    "memberof": "src/client.js~BufferClient",
+    "longname": "src/client.js~BufferClient#_stringify_options",
+    "access": null,
+    "description": null,
+    "lineNumber": 45,
+    "undocument": true,
+    "type": {
+      "types": [
+        "*"
+      ]
+    }
+  },
+  {
+    "kind": "member",
+    "static": false,
+    "variation": null,
+    "name": "config",
+    "memberof": "src/client.js~BufferClient",
+    "longname": "src/client.js~BufferClient#config",
+    "access": null,
+    "description": "The Buffer configuration retrieved from the /info/configuration.json endpoint",
+    "lineNumber": 53,
+    "type": {
+      "nullable": null,
+      "types": [
+        "Object"
+      ],
+      "spread": false,
+      "description": null
+    }
+  },
+  {
+    "kind": "member",
+    "static": false,
+    "variation": null,
+    "name": "client",
+    "memberof": "src/client.js~BufferClient",
+    "longname": "src/client.js~BufferClient#client",
+    "access": null,
+    "description": "The OAuth2 client that will be used to automatically authenticate API URLs",
+    "lineNumber": 59,
+    "type": {
+      "nullable": null,
+      "types": [
+        "Object"
+      ],
+      "spread": false,
+      "description": null
+    }
+  },
+  {
+    "kind": "member",
+    "static": false,
+    "variation": null,
+    "name": "promise",
+    "memberof": "src/client.js~BufferClient",
+    "longname": "src/client.js~BufferClient#promise",
+    "access": null,
+    "description": "A promise that will return after the BufferClient instance has been built",
+    "lineNumber": 72,
+    "type": {
+      "nullable": null,
+      "types": [
+        "Promise"
+      ],
+      "spread": false,
+      "description": null
+    }
+  },
+  {
+    "kind": "member",
+    "static": false,
+    "variation": null,
+    "name": "_access_token",
+    "memberof": "src/client.js~BufferClient",
+    "longname": "src/client.js~BufferClient#_access_token",
+    "access": null,
+    "description": null,
+    "lineNumber": 78,
+    "undocument": true,
+    "type": {
+      "types": [
+        "*"
+      ]
+    }
+  },
+  {
+    "kind": "member",
+    "static": false,
+    "variation": null,
+    "name": "_authenticated",
+    "memberof": "src/client.js~BufferClient",
+    "longname": "src/client.js~BufferClient#_authenticated",
+    "access": null,
+    "description": null,
+    "lineNumber": 79,
+    "undocument": true,
+    "type": {
+      "types": [
+        "boolean"
+      ]
+    }
+  },
+  {
+    "kind": "member",
+    "static": false,
+    "variation": null,
+    "name": "config",
+    "memberof": "src/client.js~BufferClient",
+    "longname": "src/client.js~BufferClient#config",
+    "access": null,
+    "description": null,
+    "lineNumber": 92,
+    "undocument": true,
+    "type": {
+      "types": [
+        "*"
+      ]
+    }
+  },
+  {
+    "kind": "method",
+    "static": false,
+    "variation": null,
+    "name": "get",
+    "memberof": "src/client.js~BufferClient",
+    "longname": "src/client.js~BufferClient#get",
+    "access": null,
+    "description": "Queries an API endpoint using the GET method",
+    "examples": [
+      "<caption>Using the optional `params` parameter:</caption>\nthis.get('profiles/4eb854340acb04e870000010/updates/sent.json', {\n\tpage: 2,\n\tcount: 100\n}, function (err, res) {\n\t// Do something\n});",
+      "<caption>Omitting the optional `params` parameter</caption>\nthis.get('profiles/4eb854340acb04e870000010/updates/sent.json', function (err, res) {\n\t// Do something\n});"
+    ],
+    "lineNumber": 117,
+    "params": [
+      {
+        "nullable": null,
+        "types": [
+          "String"
+        ],
+        "spread": false,
+        "optional": false,
+        "name": "endpoint",
+        "description": "The API endpoint to query. This should not be the full API URL. Example: 'users.json'"
+      },
+      {
+        "nullable": null,
+        "types": [
+          "Object"
+        ],
+        "spread": false,
+        "optional": false,
+        "name": "params",
+        "description": "A list of params to be appended to the URL. If omitted, the default Buffer API attributes will be used."
+      },
+      {
+        "nullable": null,
+        "types": [
+          "Function"
+        ],
+        "spread": false,
+        "optional": false,
+        "name": "callback",
+        "description": "The callback to run when the request has been fulfilled"
+      }
+    ],
+    "generator": false
+  },
+  {
+    "kind": "method",
+    "static": false,
+    "variation": null,
+    "name": "post",
+    "memberof": "src/client.js~BufferClient",
+    "longname": "src/client.js~BufferClient#post",
+    "access": null,
+    "description": "Queries an API endpoint using the POST method",
+    "examples": [
+      "<caption>Using the optional `params` parameter:</caption>\nthis.post('profiles/4eb854340acb04e870000010/schedules/update.json', { ... }, function (err, res) {\n\t// Do something\n});",
+      "<caption>Omitting the optional `params` parameter</caption>\nthis.post('user/deauthorize.json', function (err, res) {\n\t// Do something\n});"
+    ],
+    "lineNumber": 150,
+    "params": [
+      {
+        "nullable": null,
+        "types": [
+          "String"
+        ],
+        "spread": false,
+        "optional": false,
+        "name": "endpoint",
+        "description": "The API endpoint to query. This should not be the full API URL. Example: 'users.json'"
+      },
+      {
+        "nullable": null,
+        "types": [
+          "Object"
+        ],
+        "spread": false,
+        "optional": false,
+        "name": "params",
+        "description": "A list of params to be appended to the URL. If omitted, the default Buffer API attributes will be used."
+      },
+      {
+        "nullable": null,
+        "types": [
+          "Function"
+        ],
+        "spread": false,
+        "optional": false,
+        "name": "callback",
+        "description": "The callback to run when the request has been fulfilled"
+      }
+    ],
+    "generator": false
+  },
+  {
+    "kind": "method",
+    "static": false,
+    "variation": null,
+    "name": "getConfiguration",
+    "memberof": "src/client.js~BufferClient",
+    "longname": "src/client.js~BufferClient#getConfiguration",
+    "access": null,
+    "description": "Retrieves the current Buffer configuration",
+    "examples": [
+      "// ...\nclient.getConfiguration(function (err, res) {\n  // Do something\n});"
+    ],
+    "lineNumber": 182,
+    "params": [
+      {
+        "nullable": null,
+        "types": [
+          "Function"
+        ],
+        "spread": false,
+        "optional": false,
+        "name": "callback",
+        "description": "The callback to run when the request has been fulfilled"
+      }
+    ],
+    "generator": false
+  },
+  {
+    "kind": "method",
+    "static": false,
+    "variation": null,
+    "name": "getProfiles",
+    "memberof": "src/client.js~BufferClient",
+    "longname": "src/client.js~BufferClient#getProfiles",
+    "access": null,
+    "description": "Gets a list of profiles associated with the authenticated user",
+    "lineNumber": 190,
+    "params": [
+      {
+        "nullable": null,
+        "types": [
+          "Function"
+        ],
+        "spread": false,
+        "optional": false,
+        "name": "callback",
+        "description": "The callback to run when the request has been fulfilled"
+      }
+    ],
+    "generator": false
+  },
+  {
+    "kind": "member",
+    "static": false,
+    "variation": null,
+    "name": "_profiles",
+    "memberof": "src/client.js~BufferClient",
+    "longname": "src/client.js~BufferClient#_profiles",
+    "access": null,
+    "description": null,
+    "lineNumber": 194,
+    "undocument": true,
+    "type": {
+      "types": [
+        "*"
+      ]
+    }
+  },
+  {
+    "kind": "method",
+    "static": false,
+    "variation": null,
+    "name": "getProfile",
+    "memberof": "src/client.js~BufferClient",
+    "longname": "src/client.js~BufferClient#getProfile",
+    "access": null,
+    "description": "Returns a profile object with a given ID.\nNote that this does not query the API, so a list of profiles must have been retrieved beforehand.",
+    "lineNumber": 212,
+    "params": [
+      {
+        "nullable": null,
+        "types": [
+          "String"
+        ],
+        "spread": false,
+        "optional": false,
+        "name": "profile_id",
+        "description": "The ID of the profile to retrieve"
+      }
+    ],
+    "return": {
+      "nullable": null,
+      "types": [
+        "Object"
+      ],
+      "spread": false,
+      "description": "The queried profile object"
+    },
+    "generator": false
+  },
+  {
+    "kind": "method",
+    "static": false,
+    "variation": null,
+    "name": "deauthorizeUser",
+    "memberof": "src/client.js~BufferClient",
+    "longname": "src/client.js~BufferClient#deauthorizeUser",
+    "access": null,
+    "description": "Revokes access for the Buffer Client to access the API on behalf of the currently logged in user",
+    "lineNumber": 220,
+    "params": [
+      {
+        "nullable": null,
+        "types": [
+          "Function"
+        ],
+        "spread": false,
+        "optional": false,
+        "name": "callback",
+        "description": "The callback to run when the request has been fulfilled"
+      }
+    ],
+    "generator": false
+  },
+  {
+    "kind": "member",
+    "static": false,
+    "variation": null,
+    "name": "_profiles",
+    "memberof": "src/client.js~BufferClient",
+    "longname": "src/client.js~BufferClient#_profiles",
+    "access": null,
+    "description": null,
+    "lineNumber": 222,
+    "undocument": true,
+    "type": {
+      "types": [
+        "*"
+      ]
+    }
+  },
+  {
+    "kind": "member",
+    "static": false,
+    "variation": null,
+    "name": "_authenticated",
+    "memberof": "src/client.js~BufferClient",
+    "longname": "src/client.js~BufferClient#_authenticated",
+    "access": null,
+    "description": null,
+    "lineNumber": 223,
+    "undocument": true,
+    "type": {
+      "types": [
+        "boolean"
+      ]
+    }
+  },
+  {
+    "kind": "method",
+    "static": false,
+    "variation": null,
+    "name": "getAccessToken",
+    "memberof": "src/client.js~BufferClient",
+    "longname": "src/client.js~BufferClient#getAccessToken",
+    "access": null,
+    "description": "Gets a permanent access token when authenticating the user.",
+    "lineNumber": 234,
+    "params": [
+      {
+        "nullable": null,
+        "types": [
+          "String"
+        ],
+        "spread": false,
+        "optional": false,
+        "name": "access_token",
+        "description": "The temporary access token assigned when passing through the OAuth gateway"
+      },
+      {
+        "nullable": null,
+        "types": [
+          "Function"
+        ],
+        "spread": false,
+        "optional": false,
+        "name": "callback",
+        "description": "The callback to run when the request has been fulfilled"
+      }
+    ],
+    "generator": false
+  },
+  {
+    "kind": "method",
+    "static": true,
+    "variation": null,
+    "name": "getAuthorizationUrl",
+    "memberof": "src/client.js~BufferClient",
+    "longname": "src/client.js~BufferClient.getAuthorizationUrl",
+    "access": null,
+    "description": "Gets the authorization URL for the current app",
+    "lineNumber": 246,
+    "params": [
+      {
+        "nullable": null,
+        "types": [
+          "String"
+        ],
+        "spread": false,
+        "optional": false,
+        "name": "client_id",
+        "description": "The client ID you were assigned when registering your Buffer application"
+      },
+      {
+        "nullable": null,
+        "types": [
+          "String"
+        ],
+        "spread": false,
+        "optional": false,
+        "name": "redirect_url",
+        "description": "The redirect URL you set when registering your Buffer application"
+      }
+    ],
+    "return": {
+      "types": [
+        "*"
+      ]
+    },
+    "generator": false
+  },
+  {
+    "kind": "file",
+    "static": true,
+    "variation": null,
+    "name": "src/modules/profile.js",
+    "memberof": null,
+    "longname": "src/modules/profile.js",
+    "access": null,
+    "description": null,
+    "lineNumber": 1,
+    "content": "import utils from '../utils';\nimport Update from './update';\nimport async from 'async';\nimport Promise from 'promise';\n\nexport default class Profile {\n\tconstructor (profile) {\n\t\tthis.updates = {\n\t\t\tsent:    {},\n\t\t\tpending: {}\n\t\t}\n\n\t\tthis.promise = new Promise((resolve, reject) => {\n\t\t\tif (typeof(profile) === 'string') {\n\t\t\t\t// Instantiating the update from an ID\n\t\t\t\tthis.getByID(profile, function (err, res) {\n\t\t\t\t\tif (!err) {\n\t\t\t\t\t\tresolve(res);\n\t\t\t\t\t} else {\n\t\t\t\t\t\treject(err);\n\t\t\t\t\t}\n\t\t\t\t});\n\t\t\t} else {\n\t\t\t\t// Instantiating the update from an object\n\t\t\t\tresolve(profile);\n\t\t\t}\n\t\t}).then((profile) => {\n\t\t\t// Map the profile to this object\n\t\t\tutils.mapObject(this, profile);\n\t\t});\n\t}\n\n\tget pending_updates () {\n\t\treturn this.updates.pending;\n\t}\n\n\tset pending_updates (value) {\n\t\tthis.updates.pending = value;\n\t}\n\n\tget sent_updates () {\n\t\treturn this.updates.sent;\n\t}\n\n\tset sent_updates (value) {\n\t\tthis.updates.sent = value;\n\t}\n\n\t/**\n\t * Gets a single profile by its ID\n\t * @param  {Integer}  profile_id - The ID of the profile to retrieve\n\t * @param  {Function} callback   - The callback to run when the request has been fulfilled\n\t */\n\tgetByID (profile_id, callback) {\n\t\t_bufferAPI.get(`profiles/${profile_id}.json`, callback);\n\t}\n\n\t/**\n\t * Gets a list of pending updates for a given profile and associates them with this object\n\t * @param  {Object}   params   - API parameters to pass through to the URL\n\t * @param  {Function} callback - The callback to run when the request has been fulfilled\n\t */\n\tgetPendingUpdates (params, callback) {\n\t\tif (typeof(params) === 'function') {\n\t\t\tcallback = params;\n\t\t\tparams   = '';\n\t\t}\n\n\t\t_bufferAPI.get(`profiles/${this.id}/updates/pending.json`, params, (err, res) => {\n\t\t\tif (!err) {\n\t\t\t\tasync.forEachOf(res.updates, function (update, index, next) {\n\t\t\t\t\tres.updates[index] = new Update(update);\n\t\t\t\t\tres.updates[index].promise.then(next);\n\t\t\t\t}, (err) => {\n\t\t\t\t\tthis.pending_updates = res.updates;\n\t\t\t\t\tcallback(err, res);\n\t\t\t\t});\n\t\t\t} else {\n\t\t\t\tcallback(err, res);\n\t\t\t}\n\n\t\t});\n\t}\n\n\t/**\n\t * Gets a list of sent updates for a given profile and associates them with this object\n\t * @param  {Object}   params   - API parameters to pass through to the URL\n\t * @param  {Function} callback - The callback to run when the request has been fulfilled\n\t */\n\tgetSentUpdates (params, callback) {\n\t\tif (typeof(params) === 'function') {\n\t\t\tcallback = params;\n\t\t\tparams   = '';\n\t\t}\n\n\t\t_bufferAPI.get(`profiles/${this.id}/updates/sent.json`, params, (err, res) => {\n\t\t\tif (!err) {\n\t\t\t\tasync.forEachOf(res.updates, function (update, index, next) {\n\t\t\t\t\tres.updates[index] = new Update(update);\n\t\t\t\t\tres.updates[index].promise.then(next);\n\t\t\t\t}, (err) => {\n\t\t\t\t\tthis.sent_updates = res.updates;\n\t\t\t\t\tcallback(err, res);\n\t\t\t\t});\n\t\t\t} else {\n\t\t\t\tcallback(err, res);\n\t\t\t}\n\t\t});\n\t}\n\n\t/**\n\t * Reorders updates in the user's buffer, given a new order\n\t * @param  {Object}   params   - API parameters to pass through to the URL. \"updates\" must be present.\n\t * @param  {Function} callback - The callback to run when the request has been fulfilled\n\t */\n\treorderUpdates (params, callback) {\n\t\t_bufferAPI.post(`profiles/${this.id}/updates/reorder.json`, params, callback);\n\t}\n\n\t/**\n\t * Shuffles updates in the user's buffer at random\n\t * @param {Object}   params     - The parameters to send to the API\n\t * @param {Function} [callback] - The callback to run when the request has been fulfilled\n\t */\n\tshuffleUpdates (params, callback = function () {}) {\n\t\tif (typeof(params) === 'function') {\n\t\t\tcallback = params;\n\t\t\tparams   = '';\n\t\t}\n\n\t\t_bufferAPI.post(`profiles/${this.id}/updates/shuffle.json`, params, callback);\n\t}\n\n\t/**\n\t * Returns the schedules set for the current profile\n\t * @param  {Function} [callback] - The callback to run when the request has been fulfilled\n\t */\n\tgetSchedules (callback = function () {}) {\n\t\t_bufferAPI.get(`profiles/${this.id}/schedules.json`, (err, res) => {\n\t\t\tif (!err) {\n\t\t\t\tthis.schedules = res;\n\t\t\t}\n\n\t\t\tcallback(err, res)\n\t\t});\n\t}\n\n\t/**\n\t * Overwrites the schedules for the associated profile\n\t * @param  {Array}    schedules  - The new schedules to send to the API\n\t * @param  {Function} [callback] - The callback to run when the request has been fulfilled\n\t */\n\tsetSchedules (schedules, callback = function () {}) {\n\t\t_bufferAPI.post(`profiles/${this.id}/schedules/update.json`, {\n\t\t\tschedules: schedules\n\t\t}, (err, res) => {\n\t\t\tif (!err) {\n\t\t\t\tthis.schedules = schedules;\n\t\t\t}\n\n\t\t\tcallback(err, res)\n\t\t});\n\t}\n}"
+  },
+  {
+    "kind": "class",
+    "static": true,
+    "variation": null,
+    "name": "Profile",
+    "memberof": "src/modules/profile.js",
+    "longname": "src/modules/profile.js~Profile",
+    "access": null,
+    "export": true,
+    "importPath": "buffer-node-api/src/modules/profile.js",
+    "importStyle": "Profile",
+    "description": null,
+    "lineNumber": 6,
+    "undocument": true,
+    "interface": false
+  },
+  {
+    "kind": "constructor",
+    "static": false,
+    "variation": null,
+    "name": "constructor",
+    "memberof": "src/modules/profile.js~Profile",
+    "longname": "src/modules/profile.js~Profile#constructor",
+    "access": null,
+    "description": null,
+    "lineNumber": 7,
+    "undocument": true,
+    "params": [
+      {
+        "name": "profile",
+        "types": [
+          "*"
+        ]
+      }
+    ],
+    "generator": false
+  },
+  {
+    "kind": "member",
+    "static": false,
+    "variation": null,
+    "name": "updates",
+    "memberof": "src/modules/profile.js~Profile",
+    "longname": "src/modules/profile.js~Profile#updates",
+    "access": null,
+    "description": null,
+    "lineNumber": 8,
+    "undocument": true,
+    "type": {
+      "types": [
+        "*"
+      ]
+    }
+  },
+  {
+    "kind": "member",
+    "static": false,
+    "variation": null,
+    "name": "promise",
+    "memberof": "src/modules/profile.js~Profile",
+    "longname": "src/modules/profile.js~Profile#promise",
+    "access": null,
+    "description": null,
+    "lineNumber": 13,
+    "undocument": true,
+    "type": {
+      "types": [
+        "*"
+      ]
+    }
+  },
+  {
+    "kind": "get",
+    "static": false,
+    "variation": null,
+    "name": "pending_updates",
+    "memberof": "src/modules/profile.js~Profile",
+    "longname": "src/modules/profile.js~Profile#pending_updates",
+    "access": null,
+    "description": null,
+    "lineNumber": 33,
+    "undocument": true,
+    "type": {
+      "types": [
+        "*"
+      ]
+    },
+    "generator": false
+  },
+  {
+    "kind": "set",
+    "static": false,
+    "variation": null,
+    "name": "pending_updates",
+    "memberof": "src/modules/profile.js~Profile",
+    "longname": "src/modules/profile.js~Profile#pending_updates",
+    "access": null,
+    "description": null,
+    "lineNumber": 37,
+    "undocument": true,
+    "type": {
+      "types": [
+        "*"
+      ]
+    },
+    "generator": false
+  },
+  {
+    "kind": "get",
+    "static": false,
+    "variation": null,
+    "name": "sent_updates",
+    "memberof": "src/modules/profile.js~Profile",
+    "longname": "src/modules/profile.js~Profile#sent_updates",
+    "access": null,
+    "description": null,
+    "lineNumber": 41,
+    "undocument": true,
+    "type": {
+      "types": [
+        "*"
+      ]
+    },
+    "generator": false
+  },
+  {
+    "kind": "set",
+    "static": false,
+    "variation": null,
+    "name": "sent_updates",
+    "memberof": "src/modules/profile.js~Profile",
+    "longname": "src/modules/profile.js~Profile#sent_updates",
+    "access": null,
+    "description": null,
+    "lineNumber": 45,
+    "undocument": true,
+    "type": {
+      "types": [
+        "*"
+      ]
+    },
+    "generator": false
+  },
+  {
+    "kind": "method",
+    "static": false,
+    "variation": null,
+    "name": "getByID",
+    "memberof": "src/modules/profile.js~Profile",
+    "longname": "src/modules/profile.js~Profile#getByID",
+    "access": null,
+    "description": "Gets a single profile by its ID",
+    "lineNumber": 54,
+    "params": [
+      {
+        "nullable": null,
+        "types": [
+          "Integer"
+        ],
+        "spread": false,
+        "optional": false,
+        "name": "profile_id",
+        "description": "The ID of the profile to retrieve"
+      },
+      {
+        "nullable": null,
+        "types": [
+          "Function"
+        ],
+        "spread": false,
+        "optional": false,
+        "name": "callback",
+        "description": "The callback to run when the request has been fulfilled"
+      }
+    ],
+    "generator": false
+  },
+  {
+    "kind": "method",
+    "static": false,
+    "variation": null,
+    "name": "getPendingUpdates",
+    "memberof": "src/modules/profile.js~Profile",
+    "longname": "src/modules/profile.js~Profile#getPendingUpdates",
+    "access": null,
+    "description": "Gets a list of pending updates for a given profile and associates them with this object",
+    "lineNumber": 63,
+    "params": [
+      {
+        "nullable": null,
+        "types": [
+          "Object"
+        ],
+        "spread": false,
+        "optional": false,
+        "name": "params",
+        "description": "API parameters to pass through to the URL"
+      },
+      {
+        "nullable": null,
+        "types": [
+          "Function"
+        ],
+        "spread": false,
+        "optional": false,
+        "name": "callback",
+        "description": "The callback to run when the request has been fulfilled"
+      }
+    ],
+    "generator": false
+  },
+  {
+    "kind": "member",
+    "static": false,
+    "variation": null,
+    "name": "pending_updates",
+    "memberof": "src/modules/profile.js~Profile",
+    "longname": "src/modules/profile.js~Profile#pending_updates",
+    "access": null,
+    "description": null,
+    "lineNumber": 75,
+    "undocument": true,
+    "type": {
+      "types": [
+        "*"
+      ]
+    }
+  },
+  {
+    "kind": "method",
+    "static": false,
+    "variation": null,
+    "name": "getSentUpdates",
+    "memberof": "src/modules/profile.js~Profile",
+    "longname": "src/modules/profile.js~Profile#getSentUpdates",
+    "access": null,
+    "description": "Gets a list of sent updates for a given profile and associates them with this object",
+    "lineNumber": 90,
+    "params": [
+      {
+        "nullable": null,
+        "types": [
+          "Object"
+        ],
+        "spread": false,
+        "optional": false,
+        "name": "params",
+        "description": "API parameters to pass through to the URL"
+      },
+      {
+        "nullable": null,
+        "types": [
+          "Function"
+        ],
+        "spread": false,
+        "optional": false,
+        "name": "callback",
+        "description": "The callback to run when the request has been fulfilled"
+      }
+    ],
+    "generator": false
+  },
+  {
+    "kind": "member",
+    "static": false,
+    "variation": null,
+    "name": "sent_updates",
+    "memberof": "src/modules/profile.js~Profile",
+    "longname": "src/modules/profile.js~Profile#sent_updates",
+    "access": null,
+    "description": null,
+    "lineNumber": 102,
+    "undocument": true,
+    "type": {
+      "types": [
+        "*"
+      ]
+    }
+  },
+  {
+    "kind": "method",
+    "static": false,
+    "variation": null,
+    "name": "reorderUpdates",
+    "memberof": "src/modules/profile.js~Profile",
+    "longname": "src/modules/profile.js~Profile#reorderUpdates",
+    "access": null,
+    "description": "Reorders updates in the user's buffer, given a new order",
+    "lineNumber": 116,
+    "params": [
+      {
+        "nullable": null,
+        "types": [
+          "Object"
+        ],
+        "spread": false,
+        "optional": false,
+        "name": "params",
+        "description": "API parameters to pass through to the URL. \"updates\" must be present."
+      },
+      {
+        "nullable": null,
+        "types": [
+          "Function"
+        ],
+        "spread": false,
+        "optional": false,
+        "name": "callback",
+        "description": "The callback to run when the request has been fulfilled"
+      }
+    ],
+    "generator": false
+  },
+  {
+    "kind": "method",
+    "static": false,
+    "variation": null,
+    "name": "shuffleUpdates",
+    "memberof": "src/modules/profile.js~Profile",
+    "longname": "src/modules/profile.js~Profile#shuffleUpdates",
+    "access": null,
+    "description": "Shuffles updates in the user's buffer at random",
+    "lineNumber": 125,
+    "params": [
+      {
+        "nullable": null,
+        "types": [
+          "Object"
+        ],
+        "spread": false,
+        "optional": false,
+        "name": "params",
+        "description": "The parameters to send to the API"
+      },
+      {
+        "nullable": null,
+        "types": [
+          "Function"
+        ],
+        "spread": false,
+        "optional": true,
+        "name": "callback",
+        "description": "The callback to run when the request has been fulfilled"
+      }
+    ],
+    "generator": false
+  },
+  {
+    "kind": "method",
+    "static": false,
+    "variation": null,
+    "name": "getSchedules",
+    "memberof": "src/modules/profile.js~Profile",
+    "longname": "src/modules/profile.js~Profile#getSchedules",
+    "access": null,
+    "description": "Returns the schedules set for the current profile",
+    "lineNumber": 138,
+    "params": [
+      {
+        "nullable": null,
+        "types": [
+          "Function"
+        ],
+        "spread": false,
+        "optional": true,
+        "name": "callback",
+        "description": "The callback to run when the request has been fulfilled"
+      }
+    ],
+    "generator": false
+  },
+  {
+    "kind": "member",
+    "static": false,
+    "variation": null,
+    "name": "schedules",
+    "memberof": "src/modules/profile.js~Profile",
+    "longname": "src/modules/profile.js~Profile#schedules",
+    "access": null,
+    "description": null,
+    "lineNumber": 141,
+    "undocument": true,
+    "type": {
+      "types": [
+        "*"
+      ]
+    }
+  },
+  {
+    "kind": "method",
+    "static": false,
+    "variation": null,
+    "name": "setSchedules",
+    "memberof": "src/modules/profile.js~Profile",
+    "longname": "src/modules/profile.js~Profile#setSchedules",
+    "access": null,
+    "description": "Overwrites the schedules for the associated profile",
+    "lineNumber": 153,
+    "params": [
+      {
+        "nullable": null,
+        "types": [
+          "Array"
+        ],
+        "spread": false,
+        "optional": false,
+        "name": "schedules",
+        "description": "The new schedules to send to the API"
+      },
+      {
+        "nullable": null,
+        "types": [
+          "Function"
+        ],
+        "spread": false,
+        "optional": true,
+        "name": "callback",
+        "description": "The callback to run when the request has been fulfilled"
+      }
+    ],
+    "generator": false
+  },
+  {
+    "kind": "member",
+    "static": false,
+    "variation": null,
+    "name": "schedules",
+    "memberof": "src/modules/profile.js~Profile",
+    "longname": "src/modules/profile.js~Profile#schedules",
+    "access": null,
+    "description": null,
+    "lineNumber": 158,
+    "undocument": true,
+    "type": {
+      "types": [
+        "*"
+      ]
+    }
+  },
+  {
+    "kind": "file",
+    "static": true,
+    "variation": null,
+    "name": "src/modules/update.js",
+    "memberof": null,
+    "longname": "src/modules/update.js",
+    "access": null,
+    "description": null,
+    "lineNumber": 1,
+    "content": "import utils from '../utils';\nimport Promise from 'promise';\n\nexport default class Update {\n\tconstructor (update) {\n\t\tthis.promise = new Promise((resolve, reject) => {\n\t\t\tif (typeof(update) === 'string') {\n\t\t\t\t// Instantiating the update from an ID\n\t\t\t\tthis.getByID(update, function (err, res) {\n\t\t\t\t\tresolve(res);\n\t\t\t\t});\n\t\t\t} else {\n\t\t\t\t// Instantiating the update from an object\n\t\t\t\tresolve(update);\n\t\t\t}\n\t\t}).then((update) => {\n\t\t\t// Map the update to this object\n\t\t\tutils.mapObject(this, update);\n\t\t});\n\t}\n\n\t/**\n\t * Retrieves a singular update with a given ID\n\t * @param  {Integer}  update_id - The ID of the update to retrieve\n\t * @param  {Function} callback  - The callback to run when the request has been fulfilled\n\t */\n\tgetByID (update_id, callback) {\n\t\t_bufferAPI.get(`updates/${update_id}.json`, callback);\n\t}\n\n\t/**\n\t * Updates the current status update on the API, then modifies the object to match the edit\n\t * @param  {Object}   params   - The parameters to update\n\t * @param  {Function} callback - The callback to run when the request has been fulfilled\n\t */\n\tedit (params, callback) {\n\t\tthis.promise.then(() => {\n\t\t\t_bufferAPI.post(`updates/${this.id}/update.json`, {\n\t\t\t\ttext:         params.text         || this.text,\n\t\t\t\tnow:          params.now          || this.now,\n\t\t\t\tmedia:        params.media        || this.media,\n\t\t\t\tutc:          params.utc          || false,\n\t\t\t\tscheduled_at: params.scheduled_at || this.scheduled_at\n\t\t\t}, (err, res) => {\n\t\t\t\tif (!err) {\n\t\t\t\t\tutils.mapObject(this, res.update);\n\t\t\t\t}\n\n\t\t\t\tcallback(err, res);\n\t\t\t});\n\t\t});\n\t}\n\n\t/**\n\t * Saves a status update to the user's buffer\n\t * @param  {Function} callback - The callback to run when the request has been fulfilled\n\t */\n\tsave (callback = function () {}) {\n\t\tthis.promise.then(() => {\n\t\t\t_bufferAPI.post('updates/create.json', {\n\t\t\t\tprofile_ids:  this.profile_ids,\n\t\t\t\ttext:         this.text,\n\t\t\t\tshorten:      this.shorten,\n\t\t\t\tnow:          this.now,\n\t\t\t\ttop:          this.top,\n\t\t\t\tmedia:        this.media,\n\t\t\t\tattachment:   this.attachment,\n\t\t\t\tscheduled_at: this.scheduled_at\n\t\t\t}, (err, res) => {\n\t\t\t\tif (!err && res.updates) {\n\t\t\t\t\tutils.mapObject(this, res.updates[0]);\n\t\t\t\t}\n\n\t\t\t\tcallback(err, res);\n\t\t\t});\n\t\t});\n\t}\n\n\t/**\n\t * Deletes a status update from the user's buffer\n\t * @param  {Function} callback - The callback to run when the request has been fulfilled\n\t */\n\tdestroy (callback = function () {}) {\n\t\tthis.promise.then(() => {\n\t\t\t_bufferAPI.post(`updates/${this.id}/destroy.json`, (err, res) => {\n\t\t\t\tif (!err) {\n\t\t\t\t\t// TODO:\n\t\t\t\t\t// There's probably a better way of doing this...\n\t\t\t\t\t// Ideally it wants to be scrubbed from the profile it's assigned to,\n\t\t\t\t\t// and the instance destroyed\n\t\t\t\t\tthis.destroyed = true;\n\t\t\t\t}\n\n\t\t\t\tcallback(err, res);\n\t\t\t});\n\t\t});\n\t}\n\n\t/**\n\t * Instantly shares an update to the selected account\n\t * @param  {Function} callback - The callback to run when the request has been fulfilled\n\t */\n\tshare (callback = function () {}) {\n\t\t_bufferAPI.post(`updates/${this.id}/share.json`, (err, res) => {\n\t\t\tif (!err) {\n\t\t\t\t// The update object will have changed upon sharing, so map it\n\t\t\t\tthis.getByID(this.id, (err, res) => {\n\t\t\t\t\tif (!err) {\n\t\t\t\t\t\tutils.mapObject(this, res);\n\t\t\t\t\t\tcallback(err, res);\n\t\t\t\t\t}\n\t\t\t\t});\n\t\t\t}\n\t\t});\n\t}\n\n\t/**\n\t * Gets interactions (e.g. retweets) from an update with a given ID\n\t * @param  {Object}   params   - A list of params to be appended to the URL.\n\t * @param  {Function} callback - The callback to run when the request has been fulfilled\n\t */\n\tgetInteractions (event, params, callback) {\n\t\t_bufferAPI.post(`updates/${this.id}/interactions.json`, {\n\t\t\tevent: event,\n\t\t\tpage:  params.page  || null,\n\t\t\tcount: params.count || null\n\t\t}, callback);\n\t}\n\n\t/**\n\t * Moves the current update to the top of the Buffer queue\n\t * @param  {Function} callback - The callback to run when the request has been fulfilled\n\t */\n\tmoveToTop (callback) {\n\t\t_bufferAPI.post(`updates/${this.id}/move_to_top.json`, callback);\n\t}\n}"
+  },
+  {
+    "kind": "class",
+    "static": true,
+    "variation": null,
+    "name": "Update",
+    "memberof": "src/modules/update.js",
+    "longname": "src/modules/update.js~Update",
+    "access": null,
+    "export": true,
+    "importPath": "buffer-node-api/src/modules/update.js",
+    "importStyle": "Update",
+    "description": null,
+    "lineNumber": 4,
+    "undocument": true,
+    "interface": false
+  },
+  {
+    "kind": "constructor",
+    "static": false,
+    "variation": null,
+    "name": "constructor",
+    "memberof": "src/modules/update.js~Update",
+    "longname": "src/modules/update.js~Update#constructor",
+    "access": null,
+    "description": null,
+    "lineNumber": 5,
+    "undocument": true,
+    "params": [
+      {
+        "name": "update",
+        "types": [
+          "*"
+        ]
+      }
+    ],
+    "generator": false
+  },
+  {
+    "kind": "member",
+    "static": false,
+    "variation": null,
+    "name": "promise",
+    "memberof": "src/modules/update.js~Update",
+    "longname": "src/modules/update.js~Update#promise",
+    "access": null,
+    "description": null,
+    "lineNumber": 6,
+    "undocument": true,
+    "type": {
+      "types": [
+        "*"
+      ]
+    }
+  },
+  {
+    "kind": "method",
+    "static": false,
+    "variation": null,
+    "name": "getByID",
+    "memberof": "src/modules/update.js~Update",
+    "longname": "src/modules/update.js~Update#getByID",
+    "access": null,
+    "description": "Retrieves a singular update with a given ID",
+    "lineNumber": 27,
+    "params": [
+      {
+        "nullable": null,
+        "types": [
+          "Integer"
+        ],
+        "spread": false,
+        "optional": false,
+        "name": "update_id",
+        "description": "The ID of the update to retrieve"
+      },
+      {
+        "nullable": null,
+        "types": [
+          "Function"
+        ],
+        "spread": false,
+        "optional": false,
+        "name": "callback",
+        "description": "The callback to run when the request has been fulfilled"
+      }
+    ],
+    "generator": false
+  },
+  {
+    "kind": "method",
+    "static": false,
+    "variation": null,
+    "name": "edit",
+    "memberof": "src/modules/update.js~Update",
+    "longname": "src/modules/update.js~Update#edit",
+    "access": null,
+    "description": "Updates the current status update on the API, then modifies the object to match the edit",
+    "lineNumber": 36,
+    "params": [
+      {
+        "nullable": null,
+        "types": [
+          "Object"
+        ],
+        "spread": false,
+        "optional": false,
+        "name": "params",
+        "description": "The parameters to update"
+      },
+      {
+        "nullable": null,
+        "types": [
+          "Function"
+        ],
+        "spread": false,
+        "optional": false,
+        "name": "callback",
+        "description": "The callback to run when the request has been fulfilled"
+      }
+    ],
+    "generator": false
+  },
+  {
+    "kind": "method",
+    "static": false,
+    "variation": null,
+    "name": "save",
+    "memberof": "src/modules/update.js~Update",
+    "longname": "src/modules/update.js~Update#save",
+    "access": null,
+    "description": "Saves a status update to the user's buffer",
+    "lineNumber": 58,
+    "params": [
+      {
+        "nullable": null,
+        "types": [
+          "Function"
+        ],
+        "spread": false,
+        "optional": false,
+        "name": "callback",
+        "description": "The callback to run when the request has been fulfilled"
+      }
+    ],
+    "generator": false
+  },
+  {
+    "kind": "method",
+    "static": false,
+    "variation": null,
+    "name": "destroy",
+    "memberof": "src/modules/update.js~Update",
+    "longname": "src/modules/update.js~Update#destroy",
+    "access": null,
+    "description": "Deletes a status update from the user's buffer",
+    "lineNumber": 83,
+    "params": [
+      {
+        "nullable": null,
+        "types": [
+          "Function"
+        ],
+        "spread": false,
+        "optional": false,
+        "name": "callback",
+        "description": "The callback to run when the request has been fulfilled"
+      }
+    ],
+    "generator": false
+  },
+  {
+    "kind": "member",
+    "static": false,
+    "variation": null,
+    "name": "destroyed",
+    "memberof": "src/modules/update.js~Update",
+    "longname": "src/modules/update.js~Update#destroyed",
+    "access": null,
+    "description": null,
+    "lineNumber": 91,
+    "undocument": true,
+    "type": {
+      "types": [
+        "boolean"
+      ]
+    }
+  },
+  {
+    "kind": "method",
+    "static": false,
+    "variation": null,
+    "name": "share",
+    "memberof": "src/modules/update.js~Update",
+    "longname": "src/modules/update.js~Update#share",
+    "access": null,
+    "description": "Instantly shares an update to the selected account",
+    "lineNumber": 103,
+    "params": [
+      {
+        "nullable": null,
+        "types": [
+          "Function"
+        ],
+        "spread": false,
+        "optional": false,
+        "name": "callback",
+        "description": "The callback to run when the request has been fulfilled"
+      }
+    ],
+    "generator": false
+  },
+  {
+    "kind": "method",
+    "static": false,
+    "variation": null,
+    "name": "getInteractions",
+    "memberof": "src/modules/update.js~Update",
+    "longname": "src/modules/update.js~Update#getInteractions",
+    "access": null,
+    "description": "Gets interactions (e.g. retweets) from an update with a given ID",
+    "lineNumber": 122,
+    "params": [
+      {
+        "nullable": null,
+        "types": [
+          "Object"
+        ],
+        "spread": false,
+        "optional": false,
+        "name": "params",
+        "description": "A list of params to be appended to the URL."
+      },
+      {
+        "nullable": null,
+        "types": [
+          "Function"
+        ],
+        "spread": false,
+        "optional": false,
+        "name": "callback",
+        "description": "The callback to run when the request has been fulfilled"
+      }
+    ],
+    "generator": false
+  },
+  {
+    "kind": "method",
+    "static": false,
+    "variation": null,
+    "name": "moveToTop",
+    "memberof": "src/modules/update.js~Update",
+    "longname": "src/modules/update.js~Update#moveToTop",
+    "access": null,
+    "description": "Moves the current update to the top of the Buffer queue",
+    "lineNumber": 134,
+    "params": [
+      {
+        "nullable": null,
+        "types": [
+          "Function"
+        ],
+        "spread": false,
+        "optional": false,
+        "name": "callback",
+        "description": "The callback to run when the request has been fulfilled"
+      }
+    ],
+    "generator": false
+  },
+  {
+    "kind": "file",
+    "static": true,
+    "variation": null,
+    "name": "src/utils.js",
+    "memberof": null,
+    "longname": "src/utils.js",
+    "access": null,
+    "description": null,
+    "lineNumber": 1,
+    "content": "export default class Utils {\n\t/**\n\t * Copies the object keys from one object and sets them on another\n\t * @param  {Object} to   - The object to add keys to\n\t * @param  {Object} from - The object to get keys from\n\t */\n\tstatic mapObject (to, from) {\n\t\tfor (var key in from) {\n\t\t\tif (from.hasOwnProperty(key)) {\n\t\t\t\tto[key] = from[key];\n\t\t\t}\n\t\t}\n\t}\n\n\t/**\n\t * Shuffles an array's indexes\n\t * @param  {Array} array - The array to shuffle\n\t * @return {Array}       - The shuffled array\n\t */\n\tstatic shuffleArray (array) {\n\t\tvar counter = array.length, temp, index;\n\n\t\t// While there are elements in the array\n\t\twhile (counter > 0) {\n\t\t\t// Pick a random index\n\t\t\tindex = Math.floor(Math.random() * counter);\n\n\t\t\t// Decrease counter by 1\n\t\t\tcounter--;\n\n\t\t\t// And swap the last element with it\n\t\t\ttemp = array[counter];\n\t\t\tarray[counter] = array[index];\n\t\t\tarray[index] = temp;\n\t\t}\n\n\t\treturn array;\n\t}\n}"
+  },
+  {
+    "kind": "class",
+    "static": true,
+    "variation": null,
+    "name": "Utils",
+    "memberof": "src/utils.js",
+    "longname": "src/utils.js~Utils",
+    "access": null,
+    "export": true,
+    "importPath": "buffer-node-api/src/utils.js",
+    "importStyle": "Utils",
+    "description": null,
+    "lineNumber": 1,
+    "undocument": true,
+    "interface": false
+  },
+  {
+    "kind": "method",
+    "static": true,
+    "variation": null,
+    "name": "mapObject",
+    "memberof": "src/utils.js~Utils",
+    "longname": "src/utils.js~Utils.mapObject",
+    "access": null,
+    "description": "Copies the object keys from one object and sets them on another",
+    "lineNumber": 7,
+    "params": [
+      {
+        "nullable": null,
+        "types": [
+          "Object"
+        ],
+        "spread": false,
+        "optional": false,
+        "name": "to",
+        "description": "The object to add keys to"
+      },
+      {
+        "nullable": null,
+        "types": [
+          "Object"
+        ],
+        "spread": false,
+        "optional": false,
+        "name": "from",
+        "description": "The object to get keys from"
+      }
+    ],
+    "generator": false
+  },
+  {
+    "kind": "method",
+    "static": true,
+    "variation": null,
+    "name": "shuffleArray",
+    "memberof": "src/utils.js~Utils",
+    "longname": "src/utils.js~Utils.shuffleArray",
+    "access": null,
+    "description": "Shuffles an array's indexes",
+    "lineNumber": 20,
+    "params": [
+      {
+        "nullable": null,
+        "types": [
+          "Array"
+        ],
+        "spread": false,
+        "optional": false,
+        "name": "array",
+        "description": "The array to shuffle"
+      }
+    ],
+    "return": {
+      "nullable": null,
+      "types": [
+        "Array"
+      ],
+      "spread": false,
+      "description": "The shuffled array"
+    },
+    "generator": false
+  },
+  {
+    "kind": "external",
+    "static": true,
+    "variation": null,
+    "name": "Infinity",
+    "externalLink": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Infinity",
+    "memberof": "BuiltinExternal/ECMAScriptExternal.js",
+    "longname": "BuiltinExternal/ECMAScriptExternal.js~Infinity",
+    "access": null,
+    "description": null,
+    "builtinExternal": true
+  },
+  {
+    "kind": "external",
+    "static": true,
+    "variation": null,
+    "name": "NaN",
+    "externalLink": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/NaN",
+    "memberof": "BuiltinExternal/ECMAScriptExternal.js",
+    "longname": "BuiltinExternal/ECMAScriptExternal.js~NaN",
+    "access": null,
+    "description": null,
+    "builtinExternal": true
+  },
+  {
+    "kind": "external",
+    "static": true,
+    "variation": null,
+    "name": "undefined",
+    "externalLink": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/undefined",
+    "memberof": "BuiltinExternal/ECMAScriptExternal.js",
+    "longname": "BuiltinExternal/ECMAScriptExternal.js~undefined",
+    "access": null,
+    "description": null,
+    "builtinExternal": true
+  },
+  {
+    "kind": "external",
+    "static": true,
+    "variation": null,
+    "name": "null",
+    "externalLink": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/null",
+    "memberof": "BuiltinExternal/ECMAScriptExternal.js",
+    "longname": "BuiltinExternal/ECMAScriptExternal.js~null",
+    "access": null,
+    "description": null,
+    "builtinExternal": true
+  },
+  {
+    "kind": "external",
+    "static": true,
+    "variation": null,
+    "name": "Object",
+    "externalLink": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object",
+    "memberof": "BuiltinExternal/ECMAScriptExternal.js",
+    "longname": "BuiltinExternal/ECMAScriptExternal.js~Object",
+    "access": null,
+    "description": null,
+    "builtinExternal": true
+  },
+  {
+    "kind": "external",
+    "static": true,
+    "variation": null,
+    "name": "object",
+    "externalLink": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object",
+    "memberof": "BuiltinExternal/ECMAScriptExternal.js",
+    "longname": "BuiltinExternal/ECMAScriptExternal.js~object",
+    "access": null,
+    "description": null,
+    "builtinExternal": true
+  },
+  {
+    "kind": "external",
+    "static": true,
+    "variation": null,
+    "name": "Function",
+    "externalLink": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Function",
+    "memberof": "BuiltinExternal/ECMAScriptExternal.js",
+    "longname": "BuiltinExternal/ECMAScriptExternal.js~Function",
+    "access": null,
+    "description": null,
+    "builtinExternal": true
+  },
+  {
+    "kind": "external",
+    "static": true,
+    "variation": null,
+    "name": "function",
+    "externalLink": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Function",
+    "memberof": "BuiltinExternal/ECMAScriptExternal.js",
+    "longname": "BuiltinExternal/ECMAScriptExternal.js~function",
+    "access": null,
+    "description": null,
+    "builtinExternal": true
+  },
+  {
+    "kind": "external",
+    "static": true,
+    "variation": null,
+    "name": "Boolean",
+    "externalLink": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean",
+    "memberof": "BuiltinExternal/ECMAScriptExternal.js",
+    "longname": "BuiltinExternal/ECMAScriptExternal.js~Boolean",
+    "access": null,
+    "description": null,
+    "builtinExternal": true
+  },
+  {
+    "kind": "external",
+    "static": true,
+    "variation": null,
+    "name": "boolean",
+    "externalLink": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Boolean",
+    "memberof": "BuiltinExternal/ECMAScriptExternal.js",
+    "longname": "BuiltinExternal/ECMAScriptExternal.js~boolean",
+    "access": null,
+    "description": null,
+    "builtinExternal": true
+  },
+  {
+    "kind": "external",
+    "static": true,
+    "variation": null,
+    "name": "Symbol",
+    "externalLink": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Symbol",
+    "memberof": "BuiltinExternal/ECMAScriptExternal.js",
+    "longname": "BuiltinExternal/ECMAScriptExternal.js~Symbol",
+    "access": null,
+    "description": null,
+    "builtinExternal": true
+  },
+  {
+    "kind": "external",
+    "static": true,
+    "variation": null,
+    "name": "Error",
+    "externalLink": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Error",
+    "memberof": "BuiltinExternal/ECMAScriptExternal.js",
+    "longname": "BuiltinExternal/ECMAScriptExternal.js~Error",
+    "access": null,
+    "description": null,
+    "builtinExternal": true
+  },
+  {
+    "kind": "external",
+    "static": true,
+    "variation": null,
+    "name": "EvalError",
+    "externalLink": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/EvalError",
+    "memberof": "BuiltinExternal/ECMAScriptExternal.js",
+    "longname": "BuiltinExternal/ECMAScriptExternal.js~EvalError",
+    "access": null,
+    "description": null,
+    "builtinExternal": true
+  },
+  {
+    "kind": "external",
+    "static": true,
+    "variation": null,
+    "name": "InternalError",
+    "externalLink": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/InternalError",
+    "memberof": "BuiltinExternal/ECMAScriptExternal.js",
+    "longname": "BuiltinExternal/ECMAScriptExternal.js~InternalError",
+    "access": null,
+    "description": null,
+    "builtinExternal": true
+  },
+  {
+    "kind": "external",
+    "static": true,
+    "variation": null,
+    "name": "RangeError",
+    "externalLink": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/RangeError",
+    "memberof": "BuiltinExternal/ECMAScriptExternal.js",
+    "longname": "BuiltinExternal/ECMAScriptExternal.js~RangeError",
+    "access": null,
+    "description": null,
+    "builtinExternal": true
+  },
+  {
+    "kind": "external",
+    "static": true,
+    "variation": null,
+    "name": "ReferenceError",
+    "externalLink": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/ReferenceError",
+    "memberof": "BuiltinExternal/ECMAScriptExternal.js",
+    "longname": "BuiltinExternal/ECMAScriptExternal.js~ReferenceError",
+    "access": null,
+    "description": null,
+    "builtinExternal": true
+  },
+  {
+    "kind": "external",
+    "static": true,
+    "variation": null,
+    "name": "SyntaxError",
+    "externalLink": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/SyntaxError",
+    "memberof": "BuiltinExternal/ECMAScriptExternal.js",
+    "longname": "BuiltinExternal/ECMAScriptExternal.js~SyntaxError",
+    "access": null,
+    "description": null,
+    "builtinExternal": true
+  },
+  {
+    "kind": "external",
+    "static": true,
+    "variation": null,
+    "name": "TypeError",
+    "externalLink": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/TypeError",
+    "memberof": "BuiltinExternal/ECMAScriptExternal.js",
+    "longname": "BuiltinExternal/ECMAScriptExternal.js~TypeError",
+    "access": null,
+    "description": null,
+    "builtinExternal": true
+  },
+  {
+    "kind": "external",
+    "static": true,
+    "variation": null,
+    "name": "URIError",
+    "externalLink": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/URIError",
+    "memberof": "BuiltinExternal/ECMAScriptExternal.js",
+    "longname": "BuiltinExternal/ECMAScriptExternal.js~URIError",
+    "access": null,
+    "description": null,
+    "builtinExternal": true
+  },
+  {
+    "kind": "external",
+    "static": true,
+    "variation": null,
+    "name": "Number",
+    "externalLink": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number",
+    "memberof": "BuiltinExternal/ECMAScriptExternal.js",
+    "longname": "BuiltinExternal/ECMAScriptExternal.js~Number",
+    "access": null,
+    "description": null,
+    "builtinExternal": true
+  },
+  {
+    "kind": "external",
+    "static": true,
+    "variation": null,
+    "name": "number",
+    "externalLink": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number",
+    "memberof": "BuiltinExternal/ECMAScriptExternal.js",
+    "longname": "BuiltinExternal/ECMAScriptExternal.js~number",
+    "access": null,
+    "description": null,
+    "builtinExternal": true
+  },
+  {
+    "kind": "external",
+    "static": true,
+    "variation": null,
+    "name": "Date",
+    "externalLink": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Date",
+    "memberof": "BuiltinExternal/ECMAScriptExternal.js",
+    "longname": "BuiltinExternal/ECMAScriptExternal.js~Date",
+    "access": null,
+    "description": null,
+    "builtinExternal": true
+  },
+  {
+    "kind": "external",
+    "static": true,
+    "variation": null,
+    "name": "String",
+    "externalLink": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String",
+    "memberof": "BuiltinExternal/ECMAScriptExternal.js",
+    "longname": "BuiltinExternal/ECMAScriptExternal.js~String",
+    "access": null,
+    "description": null,
+    "builtinExternal": true
+  },
+  {
+    "kind": "external",
+    "static": true,
+    "variation": null,
+    "name": "string",
+    "externalLink": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String",
+    "memberof": "BuiltinExternal/ECMAScriptExternal.js",
+    "longname": "BuiltinExternal/ECMAScriptExternal.js~string",
+    "access": null,
+    "description": null,
+    "builtinExternal": true
+  },
+  {
+    "kind": "external",
+    "static": true,
+    "variation": null,
+    "name": "RegExp",
+    "externalLink": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/RegExp",
+    "memberof": "BuiltinExternal/ECMAScriptExternal.js",
+    "longname": "BuiltinExternal/ECMAScriptExternal.js~RegExp",
+    "access": null,
+    "description": null,
+    "builtinExternal": true
+  },
+  {
+    "kind": "external",
+    "static": true,
+    "variation": null,
+    "name": "Array",
+    "externalLink": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array",
+    "memberof": "BuiltinExternal/ECMAScriptExternal.js",
+    "longname": "BuiltinExternal/ECMAScriptExternal.js~Array",
+    "access": null,
+    "description": null,
+    "builtinExternal": true
+  },
+  {
+    "kind": "external",
+    "static": true,
+    "variation": null,
+    "name": "Int8Array",
+    "externalLink": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Int8Array",
+    "memberof": "BuiltinExternal/ECMAScriptExternal.js",
+    "longname": "BuiltinExternal/ECMAScriptExternal.js~Int8Array",
+    "access": null,
+    "description": null,
+    "builtinExternal": true
+  },
+  {
+    "kind": "external",
+    "static": true,
+    "variation": null,
+    "name": "Uint8Array",
+    "externalLink": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Uint8Array",
+    "memberof": "BuiltinExternal/ECMAScriptExternal.js",
+    "longname": "BuiltinExternal/ECMAScriptExternal.js~Uint8Array",
+    "access": null,
+    "description": null,
+    "builtinExternal": true
+  },
+  {
+    "kind": "external",
+    "static": true,
+    "variation": null,
+    "name": "Uint8ClampedArray",
+    "externalLink": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Uint8ClampedArray",
+    "memberof": "BuiltinExternal/ECMAScriptExternal.js",
+    "longname": "BuiltinExternal/ECMAScriptExternal.js~Uint8ClampedArray",
+    "access": null,
+    "description": null,
+    "builtinExternal": true
+  },
+  {
+    "kind": "external",
+    "static": true,
+    "variation": null,
+    "name": "Int16Array",
+    "externalLink": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Int16Array",
+    "memberof": "BuiltinExternal/ECMAScriptExternal.js",
+    "longname": "BuiltinExternal/ECMAScriptExternal.js~Int16Array",
+    "access": null,
+    "description": null,
+    "builtinExternal": true
+  },
+  {
+    "kind": "external",
+    "static": true,
+    "variation": null,
+    "name": "Uint16Array",
+    "externalLink": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Uint16Array",
+    "memberof": "BuiltinExternal/ECMAScriptExternal.js",
+    "longname": "BuiltinExternal/ECMAScriptExternal.js~Uint16Array",
+    "access": null,
+    "description": null,
+    "builtinExternal": true
+  },
+  {
+    "kind": "external",
+    "static": true,
+    "variation": null,
+    "name": "Int32Array",
+    "externalLink": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Int32Array",
+    "memberof": "BuiltinExternal/ECMAScriptExternal.js",
+    "longname": "BuiltinExternal/ECMAScriptExternal.js~Int32Array",
+    "access": null,
+    "description": null,
+    "builtinExternal": true
+  },
+  {
+    "kind": "external",
+    "static": true,
+    "variation": null,
+    "name": "Uint32Array",
+    "externalLink": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Uint32Array",
+    "memberof": "BuiltinExternal/ECMAScriptExternal.js",
+    "longname": "BuiltinExternal/ECMAScriptExternal.js~Uint32Array",
+    "access": null,
+    "description": null,
+    "builtinExternal": true
+  },
+  {
+    "kind": "external",
+    "static": true,
+    "variation": null,
+    "name": "Float32Array",
+    "externalLink": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Float32Array",
+    "memberof": "BuiltinExternal/ECMAScriptExternal.js",
+    "longname": "BuiltinExternal/ECMAScriptExternal.js~Float32Array",
+    "access": null,
+    "description": null,
+    "builtinExternal": true
+  },
+  {
+    "kind": "external",
+    "static": true,
+    "variation": null,
+    "name": "Float64Array",
+    "externalLink": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Float64Array",
+    "memberof": "BuiltinExternal/ECMAScriptExternal.js",
+    "longname": "BuiltinExternal/ECMAScriptExternal.js~Float64Array",
+    "access": null,
+    "description": null,
+    "builtinExternal": true
+  },
+  {
+    "kind": "external",
+    "static": true,
+    "variation": null,
+    "name": "Map",
+    "externalLink": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Map",
+    "memberof": "BuiltinExternal/ECMAScriptExternal.js",
+    "longname": "BuiltinExternal/ECMAScriptExternal.js~Map",
+    "access": null,
+    "description": null,
+    "builtinExternal": true
+  },
+  {
+    "kind": "external",
+    "static": true,
+    "variation": null,
+    "name": "Set",
+    "externalLink": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Set",
+    "memberof": "BuiltinExternal/ECMAScriptExternal.js",
+    "longname": "BuiltinExternal/ECMAScriptExternal.js~Set",
+    "access": null,
+    "description": null,
+    "builtinExternal": true
+  },
+  {
+    "kind": "external",
+    "static": true,
+    "variation": null,
+    "name": "WeakMap",
+    "externalLink": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/WeakMap",
+    "memberof": "BuiltinExternal/ECMAScriptExternal.js",
+    "longname": "BuiltinExternal/ECMAScriptExternal.js~WeakMap",
+    "access": null,
+    "description": null,
+    "builtinExternal": true
+  },
+  {
+    "kind": "external",
+    "static": true,
+    "variation": null,
+    "name": "WeakSet",
+    "externalLink": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/WeakSet",
+    "memberof": "BuiltinExternal/ECMAScriptExternal.js",
+    "longname": "BuiltinExternal/ECMAScriptExternal.js~WeakSet",
+    "access": null,
+    "description": null,
+    "builtinExternal": true
+  },
+  {
+    "kind": "external",
+    "static": true,
+    "variation": null,
+    "name": "ArrayBuffer",
+    "externalLink": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/ArrayBuffer",
+    "memberof": "BuiltinExternal/ECMAScriptExternal.js",
+    "longname": "BuiltinExternal/ECMAScriptExternal.js~ArrayBuffer",
+    "access": null,
+    "description": null,
+    "builtinExternal": true
+  },
+  {
+    "kind": "external",
+    "static": true,
+    "variation": null,
+    "name": "DataView",
+    "externalLink": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/DataView",
+    "memberof": "BuiltinExternal/ECMAScriptExternal.js",
+    "longname": "BuiltinExternal/ECMAScriptExternal.js~DataView",
+    "access": null,
+    "description": null,
+    "builtinExternal": true
+  },
+  {
+    "kind": "external",
+    "static": true,
+    "variation": null,
+    "name": "JSON",
+    "externalLink": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/JSON",
+    "memberof": "BuiltinExternal/ECMAScriptExternal.js",
+    "longname": "BuiltinExternal/ECMAScriptExternal.js~JSON",
+    "access": null,
+    "description": null,
+    "builtinExternal": true
+  },
+  {
+    "kind": "external",
+    "static": true,
+    "variation": null,
+    "name": "Promise",
+    "externalLink": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Promise",
+    "memberof": "BuiltinExternal/ECMAScriptExternal.js",
+    "longname": "BuiltinExternal/ECMAScriptExternal.js~Promise",
+    "access": null,
+    "description": null,
+    "builtinExternal": true
+  },
+  {
+    "kind": "external",
+    "static": true,
+    "variation": null,
+    "name": "Generator",
+    "externalLink": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Generator",
+    "memberof": "BuiltinExternal/ECMAScriptExternal.js",
+    "longname": "BuiltinExternal/ECMAScriptExternal.js~Generator",
+    "access": null,
+    "description": null,
+    "builtinExternal": true
+  },
+  {
+    "kind": "external",
+    "static": true,
+    "variation": null,
+    "name": "GeneratorFunction",
+    "externalLink": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/GeneratorFunction",
+    "memberof": "BuiltinExternal/ECMAScriptExternal.js",
+    "longname": "BuiltinExternal/ECMAScriptExternal.js~GeneratorFunction",
+    "access": null,
+    "description": null,
+    "builtinExternal": true
+  },
+  {
+    "kind": "external",
+    "static": true,
+    "variation": null,
+    "name": "Reflect",
+    "externalLink": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Reflect",
+    "memberof": "BuiltinExternal/ECMAScriptExternal.js",
+    "longname": "BuiltinExternal/ECMAScriptExternal.js~Reflect",
+    "access": null,
+    "description": null,
+    "builtinExternal": true
+  },
+  {
+    "kind": "external",
+    "static": true,
+    "variation": null,
+    "name": "Proxy",
+    "externalLink": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Proxy",
+    "memberof": "BuiltinExternal/ECMAScriptExternal.js",
+    "longname": "BuiltinExternal/ECMAScriptExternal.js~Proxy",
+    "access": null,
+    "description": null,
+    "builtinExternal": true
+  },
+  {
+    "kind": "external",
+    "static": true,
+    "variation": null,
+    "name": "CanvasRenderingContext2D",
+    "externalLink": "https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D",
+    "memberof": "BuiltinExternal/WebAPIExternal.js",
+    "longname": "BuiltinExternal/WebAPIExternal.js~CanvasRenderingContext2D",
+    "access": null,
+    "description": null,
+    "builtinExternal": true
+  },
+  {
+    "kind": "external",
+    "static": true,
+    "variation": null,
+    "name": "DocumentFragment",
+    "externalLink": "https://developer.mozilla.org/en-US/docs/Web/API/DocumentFragment",
+    "memberof": "BuiltinExternal/WebAPIExternal.js",
+    "longname": "BuiltinExternal/WebAPIExternal.js~DocumentFragment",
+    "access": null,
+    "description": null,
+    "builtinExternal": true
+  },
+  {
+    "kind": "external",
+    "static": true,
+    "variation": null,
+    "name": "Element",
+    "externalLink": "https://developer.mozilla.org/en-US/docs/Web/API/Element",
+    "memberof": "BuiltinExternal/WebAPIExternal.js",
+    "longname": "BuiltinExternal/WebAPIExternal.js~Element",
+    "access": null,
+    "description": null,
+    "builtinExternal": true
+  },
+  {
+    "kind": "external",
+    "static": true,
+    "variation": null,
+    "name": "Event",
+    "externalLink": "https://developer.mozilla.org/en-US/docs/Web/API/Event",
+    "memberof": "BuiltinExternal/WebAPIExternal.js",
+    "longname": "BuiltinExternal/WebAPIExternal.js~Event",
+    "access": null,
+    "description": null,
+    "builtinExternal": true
+  },
+  {
+    "kind": "external",
+    "static": true,
+    "variation": null,
+    "name": "Node",
+    "externalLink": "https://developer.mozilla.org/en-US/docs/Web/API/Node",
+    "memberof": "BuiltinExternal/WebAPIExternal.js",
+    "longname": "BuiltinExternal/WebAPIExternal.js~Node",
+    "access": null,
+    "description": null,
+    "builtinExternal": true
+  },
+  {
+    "kind": "external",
+    "static": true,
+    "variation": null,
+    "name": "NodeList",
+    "externalLink": "https://developer.mozilla.org/en-US/docs/Web/API/NodeList",
+    "memberof": "BuiltinExternal/WebAPIExternal.js",
+    "longname": "BuiltinExternal/WebAPIExternal.js~NodeList",
+    "access": null,
+    "description": null,
+    "builtinExternal": true
+  },
+  {
+    "kind": "external",
+    "static": true,
+    "variation": null,
+    "name": "XMLHttpRequest",
+    "externalLink": "https://developer.mozilla.org/en/docs/Web/API/XMLHttpRequest",
+    "memberof": "BuiltinExternal/WebAPIExternal.js",
+    "longname": "BuiltinExternal/WebAPIExternal.js~XMLHttpRequest",
+    "access": null,
+    "description": null,
+    "builtinExternal": true
+  },
+  {
+    "kind": "testFile",
+    "static": true,
+    "variation": null,
+    "name": "tests/core/client.js",
+    "memberof": null,
+    "longname": "tests/core/client.js",
+    "access": null,
+    "description": null,
+    "lineNumber": 1,
+    "content": "import test from 'selenium-webdriver/testing';\nimport express from 'express';\n\nlet client,\n    driver,\n    server = express();\n\nbefore(function (done) {\n\tserver.listen(3000, done);\n});\n\nafter(function (done) {\n\t// Deauthorize the user AFTER all tests have been ran,\n\t// or else authentication will fail...\n\tclient.deauthorizeUser(function (err, res) {\n\t\tshould.not.exist(err);\n\t\tdone();\n\t});\n});\n\ndescribe('Core Suite', function () {\n\tdescribe('Authentication', function () {\n\t\tit('should authenticate the user when returning from the OAuth gateway', function (done) {\n\t\t\tserver.get('/authorize', function (req, res) {\n\t\t\t\tres.send(`<a id=\"authorize_link\" href=\"${BufferClient.getAuthorizationUrl(app.client_id, app.redirect_url)}\">Authorize</a>`);\n\t\t\t})\n\t\t\tserver.get('/verify', function (req, res) {\n\t \t\t\tclient = new BufferClient({\n\t\t\t\t\taccess_token: req.query.code,\n\t\t\t\t\tclient_id: app.client_id,\n\t\t\t\t\tclient_secret: app.client_secret,\n\t\t\t\t\tredirect_url: app.redirect_url,\n\t\t\t\t\tauthenticated: false\n\t\t\t\t}, function (err, res) {\n\t\t\t\t\tclient._authenticated.should.be.true;\n\t\t\t\t\tclient._access_token.should.not.equal(req.query.code);\n\n\t\t\t\t\t// Clear out any previously queued updates before running tests\n\t\t\t\t\tclient.getProfiles(function (err, res) {\n\t\t\t\t\t\tvar profile = client.getProfile(app.profile_id);\n\t\t\t\t\t\tprofile.getPendingUpdates(function (err, res) {\n\t\t\t\t\t\t\tasync.forEachOf(profile.pending_updates, function (update, key, next) {\n\t\t\t\t\t\t\t\tupdate.destroy(next);\n\t\t\t\t\t\t\t}, function () {\n\t\t\t\t\t\t\t\tdone();\n\t\t\t\t\t\t\t});\n\t\t\t\t\t\t});\n\t\t\t\t\t});\n\t\t\t\t});\n\t\t\t});\n\n\t\t\tthis.timeout(100000);\n\n\t\t\tdriver = new seleniumWebdriver\n\t\t\t  .Builder()\n\t\t\t  .forBrowser('phantomjs')\n\t\t\t  .build();\n\n\t\t\t// Click through to the authorization page\n\t\t\tdriver.get('http://localhost:3000/authorize');\n\t\t\tdriver.findElement(By.tagName('a')).click();\n\n\t\t\t// Log in to Buffer\n\t\t\tdriver.findElement(By.id('email')).sendKeys('buffertest@joemck.ie');\n\t\t\tdriver.findElement(By.id('password')).sendKeys('password');\n\t\t\tdriver.findElement(By.name('signin')).click();\n\n\t\t\tdriver.findElement(By.className('allow')).click();\n\t\t\tdriver.quit();\n\t\t});\n\n\t\tdescribe('Method: getAuthorizationUrl', function () {\n\t\t\tit('should include the client ID', function (done) {\n\t\t\t\tBufferClient.getAuthorizationUrl(app.client_id, app.redirect_url).should.include(app.client_id);\n\t\t\t\tdone();\n\t\t\t});\n\t\t\tit('should include the redirect URI', function (done) {\n\t\t\t\tBufferClient.getAuthorizationUrl(app.client_id, app.redirect_url).should.include(encodeURIComponent(app.redirect_url));\n\t\t\t\tdone();\n\t\t\t});\n\t\t});\n\t});\n\n\tdescribe('Instantiation', function () {\n\t\tit('should assign the authenticated flag', function (done) {\n\t\t\tclient.should.have.property('_authenticated');\n\t\t\tdone();\n\t\t});\n\t\tit('should assign the client ID', function (done) {\n\t\t\tclient.should.have.property('_client_id');\n\t\t\tdone();\n\t\t});\n\t\tit('should assign the client secret', function (done) {\n\t\t\tclient.should.have.property('_client_secret');\n\t\t\tdone();\n\t\t});\n\t\tit('should assign the access token', function (done) {\n\t\t\tclient.should.have.property('_access_token');\n\t\t\tdone();\n\t\t});\n\t\tit('should assign the redirect_url', function (done) {\n\t\t\tclient.should.have.property('_access_token');\n\t\t\tdone();\n\t\t});\n\t\tit('should assign the API version', function (done) {\n\t\t\tclient.should.have.property('_api_version');\n\t\t\tdone();\n\t\t});\n\t\tit('should assign the API protocol as HTTPS', function (done) {\n\t\t\tclient.should.have.property('_protocol', 'https');\n\t\t\tdone();\n\t\t});\n\t\tit('should assign the hostname as \"api.bufferapp.com\"', function (done) {\n\t\t\tclient.should.have.property('_hostname', 'api.bufferapp.com');\n\t\t\tdone();\n\t\t});\n\t\tit('should assign the host in the format \"#{protocol}://#{hostname}\"', function (done) {\n\t\t\tclient.should.have.property('_host', `${client._protocol}://${client._hostname}`);\n\t\t\tdone();\n\t\t});\n\t\tit('should set the options to be passed to querystring.stringify()', function (done) {\n\t\t\tclient.should.have.property('_stringify_options');\n\t\t\tclient._stringify_options.should.eql({\n\t\t\t\tarrayFormat: 'index'\n\t\t\t});\n\t\t\tdone();\n\t\t});\n\t\tit('should generate the OAuth client', function(done) {\n\t\t\tclient.should.have.property('client');\n\t\t\tdone();\n\t\t});\n\t\tit('should retrieve the Buffer configuration', function (done) {\n\t\t\tclient.should.have.property('config');\n\t\t\tdone();\n\t\t});\n\t});\n\n\tdescribe('API Interaction', function () {\n\t\tdescribe('Method: get', function () {\n\t\t\tit('should respond', function (done) {\n\t\t\t\texpect(client).to.respondTo('get');\n\t\t\t\tdone();\n\t\t\t});\n\t\t\tit('should not throw an error', function (done) {\n\t\t\t\tclient.get('info/configuration.json', function (err, res) {\n\t\t\t\t\tshould.not.exist(err);\n\t\t\t\t\tdone();\n\t\t\t\t});\n\t\t\t});\n\t\t\tit('should use the GET method', function (done) {\n\t\t\t\tclient.get('info/configuration.json', function (err, res, response) {\n\t\t\t\t\tresponse.req.method.should.equal('GET');\n\t\t\t\t\tdone();\n\t\t\t\t});\n\t\t\t});\n\t\t});\n\t\tdescribe('Method: post', function () {\n\t\t\tit('should respond', function (done) {\n\t\t\t\texpect(client).to.respondTo('post');\n\t\t\t\tdone();\n\t\t\t});\n\t\t\tit('should not throw an error', function (done) {\n\t\t\t\tclient.post(`profiles/${app.profile_id}/updates/shuffle.json`, function (err, res, response) {\n\t\t\t\t\tshould.not.exist(err);\n\t\t\t\t\tdone();\n\t\t\t\t});\n\t\t\t});\n\t\t\tit('should use the POST method', function (done) {\n\t\t\t\tclient.post(`profiles/${app.profile_id}/updates/shuffle.json`, function (err, res, response) {\n\t\t\t\t\tresponse.req.method.should.equal('POST');\n\t\t\t\t\tdone();\n\t\t\t\t});\n\t\t\t});\n\t\t});\n\t});\n\n\tdescribe('Profiles', function () {\n\t\tdescribe('Method: getProfiles', function () {\n\t\t\tit('should respond', function (done) {\n\t\t\t\texpect(client).to.respondTo('getProfiles');\n\t\t\t\tdone();\n\t\t\t});\n\t\t\tit('should not throw an error', function (done) {\n\t\t\t\tclient.getProfiles(function (err, res) {\n\t\t\t\t\tshould.not.exist(err);\n\t\t\t\t\tdone();\n\t\t\t\t});\n\t\t\t});\n\t\t\tit('should associate the profiles with the client', function (done) {\n\t\t\t\tclient.getProfiles(function (err, res) {\n\t\t\t\t\tclient._profiles.should.exist;\n\t\t\t\t\tdone();\n\t\t\t\t});\n\t\t\t});\n\t\t\tit('should instantiate each profile with the Profile object', function (done) {\n\t\t\t\tclient._profiles[app.profile_id].should.be.an.instanceOf(Profile);\n\t\t\t\tdone();\n\t\t\t});\n\t\t});\n\n\t\tdescribe('Method: getProfile', function () {\n\t\t\tit('should respond', function (done) {\n\t\t\t\texpect(client).to.respondTo('getProfile');\n\t\t\t\tdone();\n\t\t\t});\n\t\t\tit('should retrieve the list of profiles', function (done) {\n\t\t\t\tclient.getProfile(app.profile_id).should.be.instanceOf(Profile);\n\t\t\t\tdone();\n\t\t\t});\n\t\t});\n\t});\n});"
+  },
+  {
+    "kind": "testDescribe",
+    "static": true,
+    "variation": null,
+    "name": "describe0",
+    "testId": 0,
+    "memberof": "tests/core/client.js",
+    "testDepth": 0,
+    "longname": "tests/core/client.js~describe0",
+    "access": null,
+    "description": "Core Suite",
+    "lineNumber": 21
+  },
+  {
+    "kind": "testDescribe",
+    "static": true,
+    "variation": null,
+    "name": "describe1",
+    "testId": 1,
+    "memberof": "tests/core/client.js~describe0",
+    "testDepth": 1,
+    "longname": "tests/core/client.js~describe0.describe1",
+    "access": null,
+    "description": "Authentication",
+    "lineNumber": 22
+  },
+  {
+    "kind": "testIt",
+    "static": true,
+    "variation": null,
+    "name": "it2",
+    "testId": 2,
+    "memberof": "tests/core/client.js~describe0.describe1",
+    "testDepth": 2,
+    "longname": "tests/core/client.js~describe0.describe1.it2",
+    "access": null,
+    "description": "should authenticate the user when returning from the OAuth gateway",
+    "lineNumber": 23
+  },
+  {
+    "kind": "testDescribe",
+    "static": true,
+    "variation": null,
+    "name": "describe3",
+    "testId": 3,
+    "memberof": "tests/core/client.js~describe0.describe1",
+    "testDepth": 2,
+    "longname": "tests/core/client.js~describe0.describe1.describe3",
+    "access": null,
+    "description": "Method: getAuthorizationUrl",
+    "lineNumber": 72
+  },
+  {
+    "kind": "testIt",
+    "static": true,
+    "variation": null,
+    "name": "it4",
+    "testId": 4,
+    "memberof": "tests/core/client.js~describe0.describe1.describe3",
+    "testDepth": 3,
+    "longname": "tests/core/client.js~describe0.describe1.describe3.it4",
+    "access": null,
+    "description": "should include the client ID",
+    "lineNumber": 73
+  },
+  {
+    "kind": "testIt",
+    "static": true,
+    "variation": null,
+    "name": "it5",
+    "testId": 5,
+    "memberof": "tests/core/client.js~describe0.describe1.describe3",
+    "testDepth": 3,
+    "longname": "tests/core/client.js~describe0.describe1.describe3.it5",
+    "access": null,
+    "description": "should include the redirect URI",
+    "lineNumber": 77
+  },
+  {
+    "kind": "testDescribe",
+    "static": true,
+    "variation": null,
+    "name": "describe6",
+    "testId": 6,
+    "memberof": "tests/core/client.js~describe0",
+    "testDepth": 1,
+    "longname": "tests/core/client.js~describe0.describe6",
+    "access": null,
+    "description": "Instantiation",
+    "lineNumber": 84
+  },
+  {
+    "kind": "testIt",
+    "static": true,
+    "variation": null,
+    "name": "it7",
+    "testId": 7,
+    "memberof": "tests/core/client.js~describe0.describe6",
+    "testDepth": 2,
+    "longname": "tests/core/client.js~describe0.describe6.it7",
+    "access": null,
+    "description": "should assign the authenticated flag",
+    "lineNumber": 85
+  },
+  {
+    "kind": "testIt",
+    "static": true,
+    "variation": null,
+    "name": "it8",
+    "testId": 8,
+    "memberof": "tests/core/client.js~describe0.describe6",
+    "testDepth": 2,
+    "longname": "tests/core/client.js~describe0.describe6.it8",
+    "access": null,
+    "description": "should assign the client ID",
+    "lineNumber": 89
+  },
+  {
+    "kind": "testIt",
+    "static": true,
+    "variation": null,
+    "name": "it9",
+    "testId": 9,
+    "memberof": "tests/core/client.js~describe0.describe6",
+    "testDepth": 2,
+    "longname": "tests/core/client.js~describe0.describe6.it9",
+    "access": null,
+    "description": "should assign the client secret",
+    "lineNumber": 93
+  },
+  {
+    "kind": "testIt",
+    "static": true,
+    "variation": null,
+    "name": "it10",
+    "testId": 10,
+    "memberof": "tests/core/client.js~describe0.describe6",
+    "testDepth": 2,
+    "longname": "tests/core/client.js~describe0.describe6.it10",
+    "access": null,
+    "description": "should assign the access token",
+    "lineNumber": 97
+  },
+  {
+    "kind": "testIt",
+    "static": true,
+    "variation": null,
+    "name": "it11",
+    "testId": 11,
+    "memberof": "tests/core/client.js~describe0.describe6",
+    "testDepth": 2,
+    "longname": "tests/core/client.js~describe0.describe6.it11",
+    "access": null,
+    "description": "should assign the redirect_url",
+    "lineNumber": 101
+  },
+  {
+    "kind": "testIt",
+    "static": true,
+    "variation": null,
+    "name": "it12",
+    "testId": 12,
+    "memberof": "tests/core/client.js~describe0.describe6",
+    "testDepth": 2,
+    "longname": "tests/core/client.js~describe0.describe6.it12",
+    "access": null,
+    "description": "should assign the API version",
+    "lineNumber": 105
+  },
+  {
+    "kind": "testIt",
+    "static": true,
+    "variation": null,
+    "name": "it13",
+    "testId": 13,
+    "memberof": "tests/core/client.js~describe0.describe6",
+    "testDepth": 2,
+    "longname": "tests/core/client.js~describe0.describe6.it13",
+    "access": null,
+    "description": "should assign the API protocol as HTTPS",
+    "lineNumber": 109
+  },
+  {
+    "kind": "testIt",
+    "static": true,
+    "variation": null,
+    "name": "it14",
+    "testId": 14,
+    "memberof": "tests/core/client.js~describe0.describe6",
+    "testDepth": 2,
+    "longname": "tests/core/client.js~describe0.describe6.it14",
+    "access": null,
+    "description": "should assign the hostname as \"api.bufferapp.com\"",
+    "lineNumber": 113
+  },
+  {
+    "kind": "testIt",
+    "static": true,
+    "variation": null,
+    "name": "it15",
+    "testId": 15,
+    "memberof": "tests/core/client.js~describe0.describe6",
+    "testDepth": 2,
+    "longname": "tests/core/client.js~describe0.describe6.it15",
+    "access": null,
+    "description": "should assign the host in the format \"#{protocol}://#{hostname}\"",
+    "lineNumber": 117
+  },
+  {
+    "kind": "testIt",
+    "static": true,
+    "variation": null,
+    "name": "it16",
+    "testId": 16,
+    "memberof": "tests/core/client.js~describe0.describe6",
+    "testDepth": 2,
+    "longname": "tests/core/client.js~describe0.describe6.it16",
+    "access": null,
+    "description": "should set the options to be passed to querystring.stringify()",
+    "lineNumber": 121
+  },
+  {
+    "kind": "testIt",
+    "static": true,
+    "variation": null,
+    "name": "it17",
+    "testId": 17,
+    "memberof": "tests/core/client.js~describe0.describe6",
+    "testDepth": 2,
+    "longname": "tests/core/client.js~describe0.describe6.it17",
+    "access": null,
+    "description": "should generate the OAuth client",
+    "lineNumber": 128
+  },
+  {
+    "kind": "testIt",
+    "static": true,
+    "variation": null,
+    "name": "it18",
+    "testId": 18,
+    "memberof": "tests/core/client.js~describe0.describe6",
+    "testDepth": 2,
+    "longname": "tests/core/client.js~describe0.describe6.it18",
+    "access": null,
+    "description": "should retrieve the Buffer configuration",
+    "lineNumber": 132
+  },
+  {
+    "kind": "testDescribe",
+    "static": true,
+    "variation": null,
+    "name": "describe19",
+    "testId": 19,
+    "memberof": "tests/core/client.js~describe0",
+    "testDepth": 1,
+    "longname": "tests/core/client.js~describe0.describe19",
+    "access": null,
+    "description": "API Interaction",
+    "lineNumber": 138
+  },
+  {
+    "kind": "testDescribe",
+    "static": true,
+    "variation": null,
+    "name": "describe20",
+    "testId": 20,
+    "memberof": "tests/core/client.js~describe0.describe19",
+    "testDepth": 2,
+    "longname": "tests/core/client.js~describe0.describe19.describe20",
+    "access": null,
+    "description": "Method: get",
+    "lineNumber": 139
+  },
+  {
+    "kind": "testIt",
+    "static": true,
+    "variation": null,
+    "name": "it21",
+    "testId": 21,
+    "memberof": "tests/core/client.js~describe0.describe19.describe20",
+    "testDepth": 3,
+    "longname": "tests/core/client.js~describe0.describe19.describe20.it21",
+    "access": null,
+    "description": "should respond",
+    "lineNumber": 140
+  },
+  {
+    "kind": "testIt",
+    "static": true,
+    "variation": null,
+    "name": "it22",
+    "testId": 22,
+    "memberof": "tests/core/client.js~describe0.describe19.describe20",
+    "testDepth": 3,
+    "longname": "tests/core/client.js~describe0.describe19.describe20.it22",
+    "access": null,
+    "description": "should not throw an error",
+    "lineNumber": 144
+  },
+  {
+    "kind": "testIt",
+    "static": true,
+    "variation": null,
+    "name": "it23",
+    "testId": 23,
+    "memberof": "tests/core/client.js~describe0.describe19.describe20",
+    "testDepth": 3,
+    "longname": "tests/core/client.js~describe0.describe19.describe20.it23",
+    "access": null,
+    "description": "should use the GET method",
+    "lineNumber": 150
+  },
+  {
+    "kind": "testDescribe",
+    "static": true,
+    "variation": null,
+    "name": "describe24",
+    "testId": 24,
+    "memberof": "tests/core/client.js~describe0.describe19",
+    "testDepth": 2,
+    "longname": "tests/core/client.js~describe0.describe19.describe24",
+    "access": null,
+    "description": "Method: post",
+    "lineNumber": 157
+  },
+  {
+    "kind": "testIt",
+    "static": true,
+    "variation": null,
+    "name": "it25",
+    "testId": 25,
+    "memberof": "tests/core/client.js~describe0.describe19.describe24",
+    "testDepth": 3,
+    "longname": "tests/core/client.js~describe0.describe19.describe24.it25",
+    "access": null,
+    "description": "should respond",
+    "lineNumber": 158
+  },
+  {
+    "kind": "testIt",
+    "static": true,
+    "variation": null,
+    "name": "it26",
+    "testId": 26,
+    "memberof": "tests/core/client.js~describe0.describe19.describe24",
+    "testDepth": 3,
+    "longname": "tests/core/client.js~describe0.describe19.describe24.it26",
+    "access": null,
+    "description": "should not throw an error",
+    "lineNumber": 162
+  },
+  {
+    "kind": "testIt",
+    "static": true,
+    "variation": null,
+    "name": "it27",
+    "testId": 27,
+    "memberof": "tests/core/client.js~describe0.describe19.describe24",
+    "testDepth": 3,
+    "longname": "tests/core/client.js~describe0.describe19.describe24.it27",
+    "access": null,
+    "description": "should use the POST method",
+    "lineNumber": 168
+  },
+  {
+    "kind": "testDescribe",
+    "static": true,
+    "variation": null,
+    "name": "describe28",
+    "testId": 28,
+    "memberof": "tests/core/client.js~describe0",
+    "testDepth": 1,
+    "longname": "tests/core/client.js~describe0.describe28",
+    "access": null,
+    "description": "Profiles",
+    "lineNumber": 177
+  },
+  {
+    "kind": "testDescribe",
+    "static": true,
+    "variation": null,
+    "name": "describe29",
+    "testId": 29,
+    "memberof": "tests/core/client.js~describe0.describe28",
+    "testDepth": 2,
+    "longname": "tests/core/client.js~describe0.describe28.describe29",
+    "access": null,
+    "description": "Method: getProfiles",
+    "lineNumber": 178
+  },
+  {
+    "kind": "testIt",
+    "static": true,
+    "variation": null,
+    "name": "it30",
+    "testId": 30,
+    "memberof": "tests/core/client.js~describe0.describe28.describe29",
+    "testDepth": 3,
+    "longname": "tests/core/client.js~describe0.describe28.describe29.it30",
+    "access": null,
+    "description": "should respond",
+    "lineNumber": 179
+  },
+  {
+    "kind": "testIt",
+    "static": true,
+    "variation": null,
+    "name": "it31",
+    "testId": 31,
+    "memberof": "tests/core/client.js~describe0.describe28.describe29",
+    "testDepth": 3,
+    "longname": "tests/core/client.js~describe0.describe28.describe29.it31",
+    "access": null,
+    "description": "should not throw an error",
+    "lineNumber": 183
+  },
+  {
+    "kind": "testIt",
+    "static": true,
+    "variation": null,
+    "name": "it32",
+    "testId": 32,
+    "memberof": "tests/core/client.js~describe0.describe28.describe29",
+    "testDepth": 3,
+    "longname": "tests/core/client.js~describe0.describe28.describe29.it32",
+    "access": null,
+    "description": "should associate the profiles with the client",
+    "lineNumber": 189
+  },
+  {
+    "kind": "testIt",
+    "static": true,
+    "variation": null,
+    "name": "it33",
+    "testId": 33,
+    "memberof": "tests/core/client.js~describe0.describe28.describe29",
+    "testDepth": 3,
+    "longname": "tests/core/client.js~describe0.describe28.describe29.it33",
+    "access": null,
+    "description": "should instantiate each profile with the Profile object",
+    "lineNumber": 195
+  },
+  {
+    "kind": "testDescribe",
+    "static": true,
+    "variation": null,
+    "name": "describe34",
+    "testId": 34,
+    "memberof": "tests/core/client.js~describe0.describe28",
+    "testDepth": 2,
+    "longname": "tests/core/client.js~describe0.describe28.describe34",
+    "access": null,
+    "description": "Method: getProfile",
+    "lineNumber": 201
+  },
+  {
+    "kind": "testIt",
+    "static": true,
+    "variation": null,
+    "name": "it35",
+    "testId": 35,
+    "memberof": "tests/core/client.js~describe0.describe28.describe34",
+    "testDepth": 3,
+    "longname": "tests/core/client.js~describe0.describe28.describe34.it35",
+    "access": null,
+    "description": "should respond",
+    "lineNumber": 202
+  },
+  {
+    "kind": "testIt",
+    "static": true,
+    "variation": null,
+    "name": "it36",
+    "testId": 36,
+    "memberof": "tests/core/client.js~describe0.describe28.describe34",
+    "testDepth": 3,
+    "longname": "tests/core/client.js~describe0.describe28.describe34.it36",
+    "access": null,
+    "description": "should retrieve the list of profiles",
+    "lineNumber": 206
+  },
+  {
+    "kind": "testFile",
+    "static": true,
+    "variation": null,
+    "name": "tests/core/utils.js",
+    "memberof": null,
+    "longname": "tests/core/utils.js",
+    "access": null,
+    "description": null,
+    "lineNumber": 1,
+    "content": "describe('Utility Suite', function () {\n\tdescribe('Method: mapObject', function () {\n\t\tvar empty_object = {},\n\t\t    full_object = {\n\t\t    \tone: 1,\n\t\t    \ttwo: 2,\n\t\t    \tthree: 3\n\t\t    };\n\n\t\tbeforeEach(function (done) {\n\t\t\tempty_object = {};\n\t\t\tdone();\n\t\t});\n\n\t\tit('should copy the parameters from the full object to the empty object', function (done) {\n\t\t\tutils.mapObject(empty_object, full_object);\n\t\t\tempty_object.should.eql(full_object);\n\t\t\tdone();\n\t\t});\n\t});\n\n\tdescribe('Method: shuffleArray', function () {\n\t\tvar array = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];\n\t\tvar array_clone = array.slice();\n\n\t\tit('should randomise the order of the array', function (done) {\n\t\t\tutils.shuffleArray(array);\n\n\t\t\t// Okay, there's a chance this test will fail\n\t\t\t// if the shuffled array results in the exact same order...\n\t\t\tarray_clone.should.not.eql(array);\n\t\t\tdone();\n\t\t});\n\t});\n});"
+  },
+  {
+    "kind": "testDescribe",
+    "static": true,
+    "variation": null,
+    "name": "describe37",
+    "testId": 37,
+    "memberof": "tests/core/utils.js",
+    "testDepth": 0,
+    "longname": "tests/core/utils.js~describe37",
+    "access": null,
+    "description": "Utility Suite",
+    "lineNumber": 1
+  },
+  {
+    "kind": "testDescribe",
+    "static": true,
+    "variation": null,
+    "name": "describe38",
+    "testId": 38,
+    "memberof": "tests/core/utils.js~describe37",
+    "testDepth": 1,
+    "longname": "tests/core/utils.js~describe37.describe38",
+    "access": null,
+    "description": "Method: mapObject",
+    "lineNumber": 2
+  },
+  {
+    "kind": "testIt",
+    "static": true,
+    "variation": null,
+    "name": "it39",
+    "testId": 39,
+    "memberof": "tests/core/utils.js~describe37.describe38",
+    "testDepth": 2,
+    "longname": "tests/core/utils.js~describe37.describe38.it39",
+    "access": null,
+    "description": "should copy the parameters from the full object to the empty object",
+    "lineNumber": 15
+  },
+  {
+    "kind": "testDescribe",
+    "static": true,
+    "variation": null,
+    "name": "describe40",
+    "testId": 40,
+    "memberof": "tests/core/utils.js~describe37",
+    "testDepth": 1,
+    "longname": "tests/core/utils.js~describe37.describe40",
+    "access": null,
+    "description": "Method: shuffleArray",
+    "lineNumber": 22
+  },
+  {
+    "kind": "testIt",
+    "static": true,
+    "variation": null,
+    "name": "it41",
+    "testId": 41,
+    "memberof": "tests/core/utils.js~describe37.describe40",
+    "testDepth": 2,
+    "longname": "tests/core/utils.js~describe37.describe40.it41",
+    "access": null,
+    "description": "should randomise the order of the array",
+    "lineNumber": 26
+  },
+  {
+    "kind": "testFile",
+    "static": true,
+    "variation": null,
+    "name": "tests/globals.js",
+    "memberof": null,
+    "longname": "tests/globals.js",
+    "access": null,
+    "description": null,
+    "lineNumber": 1,
+    "content": "if (!global._babelPolyfill) {\n\t/**\n\t * Require babel manually and check if it has been required before,\n\t * or else it causes conflicts with the grunt watch function.\n\t * See https://github.com/pghalliday/grunt-mocha-test/issues/101\n\t */\n\trequire('babel/register');\n}\n\nglobal.app = {\n\tclient_id: '55c663c0c6eeaacd2ea217c2',\n\tclient_secret: '7c8524ce6b74bdde1a7112c7005436b9',\n\tprofile_id: '55c2516e8e6e335428e74319',\n\tredirect_url: 'http://localhost:3000/verify'\n};\n\nglobal.BufferClient      = require('../src/client');\nglobal.chai              = require('chai');\nglobal.faker             = require('faker');\nglobal.http              = require('http');\nglobal.should            = chai.should();\nglobal.expect            = chai.expect;\nglobal.async             = require('async');\nglobal.seleniumWebdriver = require('selenium-webdriver');\nglobal.By                = seleniumWebdriver.By;\nglobal.Profile           = require('../src/modules/profile');\nglobal.Update            = require('../src/modules/update');\nglobal.utils             = require('../src/utils');"
+  },
+  {
+    "kind": "testFile",
+    "static": true,
+    "variation": null,
+    "name": "tests/modules/profile.js",
+    "memberof": null,
+    "longname": "tests/modules/profile.js",
+    "access": null,
+    "description": null,
+    "lineNumber": 1,
+    "content": "describe('Module: Profile', function () {\n\tlet profile, updates;\n\n\tthis.timeout(3000);\n\n\tbeforeEach(function (done) {\n\t\tprofile = new Profile(app.profile_id);\n\t\tprofile.promise.then(done);\n\t});\n\n\tdescribe('Instantiation', function () {\n\t\tafterEach(function (done) {\n\t\t\tprofile = undefined;\n\t\t\tdone();\n\t\t});\n\n\t\tit('should assign the updates object structure', function (done) {\n\t\t\tprofile.should.have.property('updates');\n\t\t\tprofile.updates.should.eql({\n\t\t\t\tsent: {},\n\t\t\t\tpending: {}\n\t\t\t});\n\t\t\tdone();\n\t\t})\n\n\t\tit('should be able to be instantiated with a profile ID', function (done) {\n\t\t\tprofile = new Profile(app.profile_id);\n\t\t\tprofile.promise.then(function () {\n\t\t\t\tprofile.id.should.equal(app.profile_id);\n\t\t\t\tdone();\n\t\t\t});\n\t\t});\n\n\t\tit('should be able to be instantiated with a profile object', function (done) {\n\t\t\tprofile = new Profile({\n\t\t\t\tid: '1',\n\t\t\t});\n\t\t\tprofile.promise.then(function () {\n\t\t\t\tshould.exist(profile.id);\n\t\t\t\tdone();\n\t\t\t});\n\t\t})\n\t});\n\n\tdescribe('Property: pending_updates', function () {\n\t\tit('should retrieve the pending update list', function (done) {\n\t\t\tprofile.pending_updates.should.equal(profile.updates.pending);\n\t\t\tdone();\n\t\t});\n\t});\n\n\tdescribe('Property: sent_updates', function () {\n\t\tit('should retrieve the sent update list', function (done) {\n\t\t\tprofile.sent_updates.should.equal(profile.updates.sent);\n\t\t\tdone();\n\t\t});\n\t});\n\n\tdescribe('Method: getPendingUpdates', function () {\n\t\tthis.timeout(10000);\n\n\t\tbefore(function (done) {\n\t\t\tupdates = [];\n\t\t\tasync.times(5, function (n, next) {\n\t\t\t\tvar update = new Update({\n\t\t\t\t\tprofile_ids: [app.profile_id],\n\t\t\t\t\ttext: faker.lorem.sentences()\n\t\t\t\t});\n\t\t\t\tupdate.save(function () {\n\t\t\t\t\tupdates.push(update);\n\t\t\t\t\tnext();\n\t\t\t\t});\n\t\t\t}, done);\n\t\t});\n\n\t\tafter(function (done) {\n\t\t\tasync.eachSeries(updates, function (update, next) {\n\t\t\t\tupdate.destroy(next);\n\t\t\t}, done);\n\t\t});\n\n\t\tit('should not throw an error', function (done) {\n\t\t\tprofile.getPendingUpdates(function (err, res) {\n\t\t\t\tshould.not.exist(err);\n\t\t\t\tdone();\n\t\t\t});\n\t\t});\n\n\t\tit('should associate the pending updates with the profile', function (done) {\n\t\t\tprofile.getPendingUpdates(function (err, res) {\n\t\t\t\tprofile.updates.pending.should.not.be.empty;\n\t\t\t\tdone();\n\t\t\t});\n\t\t});\n\n\t\tit('should instantiate each update with the Update object', function (done) {\n\t\t\tprofile.getPendingUpdates(function (err, res) {\n\t\t\t\tasync.forEachOf(profile.updates.pending, function (update, index, next) {\n\t\t\t\t\tupdate.should.be.an.instanceOf(Update);\n\t\t\t\t\tnext();\n\t\t\t\t}, done);\n\t\t\t});\n\t\t});\n\t});\n\n\tdescribe('Method: getSentUpdates', function () {\n\t\tbefore(function (done) {\n\t\t\tthis.timeout(30000);\n\t\t\tasync.waterfall([\n\t\t\t\tfunction (callback) {\n\t\t\t\t\tvar updates = [];\n\t\t\t\t\tasync.times(5, function (n, next) {\n\t\t\t\t\t\tvar update = new Update({\n\t\t\t\t\t\t\tprofile_ids: [app.profile_id],\n\t\t\t\t\t\t\ttext: faker.lorem.sentences()\n\t\t\t\t\t\t});\n\t\t\t\t\t\tupdate.save(function () {\n\t\t\t\t\t\t\tupdates.push(update);\n\t\t\t\t\t\t\tnext();\n\t\t\t\t\t\t});\n\t\t\t\t\t}, function () {\n\t\t\t\t\t\tcallback(null, updates);\n\t\t\t\t\t});\n\t\t\t\t},\n\t\t\t\tfunction (updates, callback) {\n\t\t\t\t\tasync.eachSeries(updates, function (update, next) {\n\t\t\t\t\t\tupdate.share(next);\n\t\t\t\t\t}, function () {\n\t\t\t\t\t\tcallback(null);\n\t\t\t\t\t});\n\t\t\t\t}\n\t\t\t], function () {\n\t\t\t\tdone();\n\t\t\t});\n\t\t});\n\n\t\tit('should not throw an error', function (done) {\n\t\t\tprofile.getSentUpdates(function (err, res) {\n\t\t\t\tshould.not.exist(err);\n\t\t\t\tdone();\n\t\t\t});\n\t\t});\n\n\t\tit('should associate the sent updates with the profile', function (done) {\n\t\t\tprofile.getSentUpdates(function (err, res) {\n\t\t\t\tprofile.updates.sent.should.not.be.empty;\n\t\t\t\tdone();\n\t\t\t});\n\t\t});\n\n\t\tit('should instantiate each update with the Update object', function (done) {\n\t\t\tprofile.getPendingUpdates(function (err, res) {\n\t\t\t\tasync.forEachOf(profile.updates.sent, function (update, index, next) {\n\t\t\t\t\tupdate.should.be.an.instanceOf(Update);\n\t\t\t\t\tnext();\n\t\t\t\t}, done);\n\t\t\t});\n\t\t});\n\t});\n\n\tdescribe('Method: getSchedules', function () {\n\t\tit('should not throw an error', function (done) {\n\t\t\tprofile.getSchedules(function (err, res) {\n\t\t\t\tshould.not.exist(err);\n\t\t\t\tdone();\n\t\t\t});\n\t\t});\n\n\t\tit('should associate the schedules with the profile', function (done) {\n\t\t\tprofile.getSchedules(function (err, res) {\n\t\t\t\tprofile.schedules.should.equal(res);\n\t\t\t\tdone();\n\t\t\t});\n\t\t});\n\t});\n\n\tdescribe('Method: setSchedules', function () {\n\t\tvar new_schedules = [{\n\t\t\tdays: ['mon', 'tue', 'thu'],\n\t\t\ttimes: ['12:45', '15:30', '17:43']\n\t\t}];\n\n\t\tit('should not throw an error', function (done) {\n\t\t\tprofile.setSchedules(new_schedules, function (err, res) {\n\t\t\t\tshould.not.exist(err);\n\t\t\t\tdone();\n\t\t\t});\n\t\t});\n\n\t\tit('should update the schedules associated with the profile', function (done) {\n\t\t\tprofile.setSchedules(new_schedules, function (err, res) {\n\t\t\t\tprofile.schedules.should.equal(new_schedules);\n\t\t\t\tdone();\n\t\t\t});\n\t\t});\n\t});\n\n\tdescribe('Method: reorderUpdates', function () {\n\t\tbeforeEach(function (done) {\n\t\t\tthis.timeout(10000);\n\t\t\tupdates = [];\n\n\t\t\tasync.times(5, function (n, next) {\n\t\t\t\tvar update = new Update({\n\t\t\t\t\tprofile_ids: [app.profile_id],\n\t\t\t\t\ttext: faker.lorem.sentences()\n\t\t\t\t});\n\t\t\t\tupdate.save(function () {\n\t\t\t\t\tupdates.push(update);\n\t\t\t\t\tnext();\n\t\t\t\t});\n\t\t\t}, done);\n\t\t});\n\n\t\tafterEach(function (done) {\n\t\t\tthis.timeout(10000);\n\t\t\tasync.eachSeries(updates, function (update, next) {\n\t\t\t\tupdate.destroy(next);\n\t\t\t}, done);\n\t\t});\n\n\t\tit('should not throw an error', function (done) {\n\t\t\tvar shuffled_update_ids = [];\n\n\t\t\tutils.shuffleArray(updates).forEach(function (update) {\n\t\t\t\tshuffled_update_ids.push(update.id);\n\t\t\t});\n\n\t\t\tprofile.reorderUpdates({\n\t\t\t\torder: shuffled_update_ids\n\t\t\t}, function (err, res) {\n\t\t\t\tshould.not.exist(err);\n\t\t\t\tdone();\n\t\t\t});\n\t\t});\n\t});\n\n\tdescribe('Method: shuffleUpdates', function () {\n\t\tbeforeEach(function (done) {\n\t\t\tthis.timeout(10000);\n\n\t\t\tupdates = [];\n\n\t\t\tasync.times(5, function (n, next) {\n\t\t\t\tvar update = new Update({\n\t\t\t\t\tprofile_ids: [app.profile_id],\n\t\t\t\t\ttext: faker.lorem.sentences()\n\t\t\t\t});\n\t\t\t\tupdate.save(function () {\n\t\t\t\t\tupdates.push(update);\n\t\t\t\t\tnext();\n\t\t\t\t});\n\t\t\t}, done);\n\t\t});\n\n\t\tafterEach(function (done) {\n\t\t\tasync.eachSeries(updates, function (update, next) {\n\t\t\t\tupdate.destroy(next);\n\t\t\t}, done);\n\t\t});\n\n\t\tit('should not throw an error', function (done) {\n\t\t\tprofile.shuffleUpdates(function (err, res) {\n\t\t\t\tshould.not.exist(err);\n\t\t\t\tdone();\n\t\t\t});\n\t\t});\n\n\t\tit('should return successful', function (done) {\n\t\t\tprofile.shuffleUpdates(function (err, res) {\n\t\t\t\tres.success.should.be.true;\n\t\t\t\tdone();\n\t\t\t});\n\t\t});\n\t});\n});"
+  },
+  {
+    "kind": "testDescribe",
+    "static": true,
+    "variation": null,
+    "name": "describe42",
+    "testId": 42,
+    "memberof": "tests/modules/profile.js",
+    "testDepth": 0,
+    "longname": "tests/modules/profile.js~describe42",
+    "access": null,
+    "description": "Module: Profile",
+    "lineNumber": 1
+  },
+  {
+    "kind": "testDescribe",
+    "static": true,
+    "variation": null,
+    "name": "describe43",
+    "testId": 43,
+    "memberof": "tests/modules/profile.js~describe42",
+    "testDepth": 1,
+    "longname": "tests/modules/profile.js~describe42.describe43",
+    "access": null,
+    "description": "Instantiation",
+    "lineNumber": 11
+  },
+  {
+    "kind": "testIt",
+    "static": true,
+    "variation": null,
+    "name": "it44",
+    "testId": 44,
+    "memberof": "tests/modules/profile.js~describe42.describe43",
+    "testDepth": 2,
+    "longname": "tests/modules/profile.js~describe42.describe43.it44",
+    "access": null,
+    "description": "should assign the updates object structure",
+    "lineNumber": 17
+  },
+  {
+    "kind": "testIt",
+    "static": true,
+    "variation": null,
+    "name": "it45",
+    "testId": 45,
+    "memberof": "tests/modules/profile.js~describe42.describe43",
+    "testDepth": 2,
+    "longname": "tests/modules/profile.js~describe42.describe43.it45",
+    "access": null,
+    "description": "should be able to be instantiated with a profile ID",
+    "lineNumber": 26
+  },
+  {
+    "kind": "testIt",
+    "static": true,
+    "variation": null,
+    "name": "it46",
+    "testId": 46,
+    "memberof": "tests/modules/profile.js~describe42.describe43",
+    "testDepth": 2,
+    "longname": "tests/modules/profile.js~describe42.describe43.it46",
+    "access": null,
+    "description": "should be able to be instantiated with a profile object",
+    "lineNumber": 34
+  },
+  {
+    "kind": "testDescribe",
+    "static": true,
+    "variation": null,
+    "name": "describe47",
+    "testId": 47,
+    "memberof": "tests/modules/profile.js~describe42",
+    "testDepth": 1,
+    "longname": "tests/modules/profile.js~describe42.describe47",
+    "access": null,
+    "description": "Property: pending_updates",
+    "lineNumber": 45
+  },
+  {
+    "kind": "testIt",
+    "static": true,
+    "variation": null,
+    "name": "it48",
+    "testId": 48,
+    "memberof": "tests/modules/profile.js~describe42.describe47",
+    "testDepth": 2,
+    "longname": "tests/modules/profile.js~describe42.describe47.it48",
+    "access": null,
+    "description": "should retrieve the pending update list",
+    "lineNumber": 46
+  },
+  {
+    "kind": "testDescribe",
+    "static": true,
+    "variation": null,
+    "name": "describe49",
+    "testId": 49,
+    "memberof": "tests/modules/profile.js~describe42",
+    "testDepth": 1,
+    "longname": "tests/modules/profile.js~describe42.describe49",
+    "access": null,
+    "description": "Property: sent_updates",
+    "lineNumber": 52
+  },
+  {
+    "kind": "testIt",
+    "static": true,
+    "variation": null,
+    "name": "it50",
+    "testId": 50,
+    "memberof": "tests/modules/profile.js~describe42.describe49",
+    "testDepth": 2,
+    "longname": "tests/modules/profile.js~describe42.describe49.it50",
+    "access": null,
+    "description": "should retrieve the sent update list",
+    "lineNumber": 53
+  },
+  {
+    "kind": "testDescribe",
+    "static": true,
+    "variation": null,
+    "name": "describe51",
+    "testId": 51,
+    "memberof": "tests/modules/profile.js~describe42",
+    "testDepth": 1,
+    "longname": "tests/modules/profile.js~describe42.describe51",
+    "access": null,
+    "description": "Method: getPendingUpdates",
+    "lineNumber": 59
+  },
+  {
+    "kind": "testIt",
+    "static": true,
+    "variation": null,
+    "name": "it52",
+    "testId": 52,
+    "memberof": "tests/modules/profile.js~describe42.describe51",
+    "testDepth": 2,
+    "longname": "tests/modules/profile.js~describe42.describe51.it52",
+    "access": null,
+    "description": "should not throw an error",
+    "lineNumber": 82
+  },
+  {
+    "kind": "testIt",
+    "static": true,
+    "variation": null,
+    "name": "it53",
+    "testId": 53,
+    "memberof": "tests/modules/profile.js~describe42.describe51",
+    "testDepth": 2,
+    "longname": "tests/modules/profile.js~describe42.describe51.it53",
+    "access": null,
+    "description": "should associate the pending updates with the profile",
+    "lineNumber": 89
+  },
+  {
+    "kind": "testIt",
+    "static": true,
+    "variation": null,
+    "name": "it54",
+    "testId": 54,
+    "memberof": "tests/modules/profile.js~describe42.describe51",
+    "testDepth": 2,
+    "longname": "tests/modules/profile.js~describe42.describe51.it54",
+    "access": null,
+    "description": "should instantiate each update with the Update object",
+    "lineNumber": 96
+  },
+  {
+    "kind": "testDescribe",
+    "static": true,
+    "variation": null,
+    "name": "describe55",
+    "testId": 55,
+    "memberof": "tests/modules/profile.js~describe42",
+    "testDepth": 1,
+    "longname": "tests/modules/profile.js~describe42.describe55",
+    "access": null,
+    "description": "Method: getSentUpdates",
+    "lineNumber": 106
+  },
+  {
+    "kind": "testIt",
+    "static": true,
+    "variation": null,
+    "name": "it56",
+    "testId": 56,
+    "memberof": "tests/modules/profile.js~describe42.describe55",
+    "testDepth": 2,
+    "longname": "tests/modules/profile.js~describe42.describe55.it56",
+    "access": null,
+    "description": "should not throw an error",
+    "lineNumber": 137
+  },
+  {
+    "kind": "testIt",
+    "static": true,
+    "variation": null,
+    "name": "it57",
+    "testId": 57,
+    "memberof": "tests/modules/profile.js~describe42.describe55",
+    "testDepth": 2,
+    "longname": "tests/modules/profile.js~describe42.describe55.it57",
+    "access": null,
+    "description": "should associate the sent updates with the profile",
+    "lineNumber": 144
+  },
+  {
+    "kind": "testIt",
+    "static": true,
+    "variation": null,
+    "name": "it58",
+    "testId": 58,
+    "memberof": "tests/modules/profile.js~describe42.describe55",
+    "testDepth": 2,
+    "longname": "tests/modules/profile.js~describe42.describe55.it58",
+    "access": null,
+    "description": "should instantiate each update with the Update object",
+    "lineNumber": 151
+  },
+  {
+    "kind": "testDescribe",
+    "static": true,
+    "variation": null,
+    "name": "describe59",
+    "testId": 59,
+    "memberof": "tests/modules/profile.js~describe42",
+    "testDepth": 1,
+    "longname": "tests/modules/profile.js~describe42.describe59",
+    "access": null,
+    "description": "Method: getSchedules",
+    "lineNumber": 161
+  },
+  {
+    "kind": "testIt",
+    "static": true,
+    "variation": null,
+    "name": "it60",
+    "testId": 60,
+    "memberof": "tests/modules/profile.js~describe42.describe59",
+    "testDepth": 2,
+    "longname": "tests/modules/profile.js~describe42.describe59.it60",
+    "access": null,
+    "description": "should not throw an error",
+    "lineNumber": 162
+  },
+  {
+    "kind": "testIt",
+    "static": true,
+    "variation": null,
+    "name": "it61",
+    "testId": 61,
+    "memberof": "tests/modules/profile.js~describe42.describe59",
+    "testDepth": 2,
+    "longname": "tests/modules/profile.js~describe42.describe59.it61",
+    "access": null,
+    "description": "should associate the schedules with the profile",
+    "lineNumber": 169
+  },
+  {
+    "kind": "testDescribe",
+    "static": true,
+    "variation": null,
+    "name": "describe62",
+    "testId": 62,
+    "memberof": "tests/modules/profile.js~describe42",
+    "testDepth": 1,
+    "longname": "tests/modules/profile.js~describe42.describe62",
+    "access": null,
+    "description": "Method: setSchedules",
+    "lineNumber": 177
+  },
+  {
+    "kind": "testIt",
+    "static": true,
+    "variation": null,
+    "name": "it63",
+    "testId": 63,
+    "memberof": "tests/modules/profile.js~describe42.describe62",
+    "testDepth": 2,
+    "longname": "tests/modules/profile.js~describe42.describe62.it63",
+    "access": null,
+    "description": "should not throw an error",
+    "lineNumber": 183
+  },
+  {
+    "kind": "testIt",
+    "static": true,
+    "variation": null,
+    "name": "it64",
+    "testId": 64,
+    "memberof": "tests/modules/profile.js~describe42.describe62",
+    "testDepth": 2,
+    "longname": "tests/modules/profile.js~describe42.describe62.it64",
+    "access": null,
+    "description": "should update the schedules associated with the profile",
+    "lineNumber": 190
+  },
+  {
+    "kind": "testDescribe",
+    "static": true,
+    "variation": null,
+    "name": "describe65",
+    "testId": 65,
+    "memberof": "tests/modules/profile.js~describe42",
+    "testDepth": 1,
+    "longname": "tests/modules/profile.js~describe42.describe65",
+    "access": null,
+    "description": "Method: reorderUpdates",
+    "lineNumber": 198
+  },
+  {
+    "kind": "testIt",
+    "static": true,
+    "variation": null,
+    "name": "it66",
+    "testId": 66,
+    "memberof": "tests/modules/profile.js~describe42.describe65",
+    "testDepth": 2,
+    "longname": "tests/modules/profile.js~describe42.describe65.it66",
+    "access": null,
+    "description": "should not throw an error",
+    "lineNumber": 222
+  },
+  {
+    "kind": "testDescribe",
+    "static": true,
+    "variation": null,
+    "name": "describe67",
+    "testId": 67,
+    "memberof": "tests/modules/profile.js~describe42",
+    "testDepth": 1,
+    "longname": "tests/modules/profile.js~describe42.describe67",
+    "access": null,
+    "description": "Method: shuffleUpdates",
+    "lineNumber": 238
+  },
+  {
+    "kind": "testIt",
+    "static": true,
+    "variation": null,
+    "name": "it68",
+    "testId": 68,
+    "memberof": "tests/modules/profile.js~describe42.describe67",
+    "testDepth": 2,
+    "longname": "tests/modules/profile.js~describe42.describe67.it68",
+    "access": null,
+    "description": "should not throw an error",
+    "lineNumber": 262
+  },
+  {
+    "kind": "testIt",
+    "static": true,
+    "variation": null,
+    "name": "it69",
+    "testId": 69,
+    "memberof": "tests/modules/profile.js~describe42.describe67",
+    "testDepth": 2,
+    "longname": "tests/modules/profile.js~describe42.describe67.it69",
+    "access": null,
+    "description": "should return successful",
+    "lineNumber": 269
+  },
+  {
+    "kind": "testFile",
+    "static": true,
+    "variation": null,
+    "name": "tests/modules/update.js",
+    "memberof": null,
+    "longname": "tests/modules/update.js",
+    "access": null,
+    "description": null,
+    "lineNumber": 1,
+    "content": "describe('Module: Update', function () {\n\tlet client, update;\n\n\tthis.timeout(3000);\n\n\tdescribe('Instantiation', function () {\n\t\tafterEach(function (done) {\n\t\t\tupdate = undefined;\n\t\t\tdone();\n\t\t});\n\n\t\tit('should be able to be instantiated with an update ID', function (done) {\n\t\t\tupdate = new Update({\n\t\t\t\tid: '1',\n\t\t\t\tprofile_ids: [app.profile_id],\n\t\t\t\ttext: faker.lorem.sentences()\n\t\t\t});\n\n\t\t\tupdate.save(function (err, res) {\n\t\t\t\tvar queried_update = new Update(res.updates[0].id);\n\t\t\t\tqueried_update.promise.then(() => {\n\t\t\t\t\tqueried_update.id.should.equal(res.updates[0].id);\n\n\t\t\t\t\tupdate.destroy();\n\t\t\t\t\tqueried_update.destroy();\n\n\t\t\t\t\tdone();\n\t\t\t\t});\n\t\t\t});\n\t\t});\n\n\t\tit('should be able to be instantiated with an update object', function (done) {\n\t\t\tupdate = new Update({\n\t\t\t\tid: '1',\n\t\t\t\tprofile_ids: [app.profile_id],\n\t\t\t\ttext: faker.lorem.sentences()\n\t\t\t});\n\t\t\tupdate.promise.then(function () {\n\t\t\t\tshould.exist(update.id);\n\t\t\t\tdone();\n\t\t\t});\n\t\t})\n\t});\n\n\tdescribe('Method: save', function () {\n\t\tbeforeEach(function (done) {\n\t\t\tupdate = new Update({\n\t\t\t\tprofile_ids: [app.profile_id],\n\t\t\t\ttext: faker.lorem.sentences()\n\t\t\t});\n\n\t\t\tdone();\n\t\t});\n\n\t\tafterEach(function (done) {\n\t\t\tupdate.destroy(done);\n\t\t});\n\n\t\tit('should not throw an error', function (done ) {\n\t\t\tupdate.save(function (err, res) {\n\t\t\t\tshould.not.exist(err);\n\t\t\t\tres.success.should.be.true;\n\t\t\t\tdone();\n\t\t\t});\n\t\t});\n\n\t\tit('should assign the saved ID to the Update object', function (done) {\n\t\t\tupdate.save(function (err, res) {\n\t\t\t\tshould.exist(update.id);\n\t\t\t\tdone();\n\t\t\t});\n\t\t});\n\t});\n\n\tdescribe('Method: destroy', function () {\n\t\tbeforeEach(function (done) {\n\t\t\tupdate = new Update({\n\t\t\t\tprofile_ids: [app.profile_id],\n\t\t\t\ttext: faker.lorem.sentences()\n\t\t\t});\n\t\t\tupdate.save(done);\n\t\t});\n\n\t\tit('should not throw an error', function (done) {\n\t\t\tupdate.destroy(function (err, res) {\n\t\t\t\tshould.not.exist(err);\n\t\t\t\tdone();\n\t\t\t});\n\t\t});\n\n\t\tit('should add an attribute to flag the update as destroyed', function (done) {\n\t\t\tupdate.destroy(function (err, res) {\n\t\t\t\tshould.exist(update.destroyed);\n\t\t\t\tdone();\n\t\t\t});\n\t\t});\n\t});\n\n\tdescribe('Method: edit', function () {\n\t\tvar new_params = {\n\t\t\ttext: 'Edited text'\n\t\t};\n\n\t\tbeforeEach(function (done) {\n\t\t\tupdate = new Update({\n\t\t\t\tprofile_ids: [app.profile_id],\n\t\t\t\ttext: faker.lorem.sentences()\n\t\t\t});\n\n\t\t\tupdate.save(done);\n\t\t});\n\n\t\tafterEach(function (done) {\n\t\t\tupdate.destroy(done);\n\t\t});\n\n\t\tit('should not throw an error', function (done) {\n\t\t\tupdate.edit(new_params, function (err, res) {\n\t\t\t\tshould.not.exist(err);\n\t\t\t\tres.success.should.be.true;\n\t\t\t\tdone();\n\t\t\t});\n\t\t});\n\n\t\tit('should change edit the update object to reflect the new values', function (done) {\n\t\t\tupdate.edit(new_params, function (err, res) {\n\t\t\t\tupdate.text.should.equal(new_params.text);\n\t\t\t\tdone();\n\t\t\t});\n\t\t});\n\t});\n\n\tdescribe('Method: share', function () {\n\t\tbeforeEach(function (done) {\n\t\t\tupdate = new Update({\n\t\t\t\tprofile_ids: [app.profile_id],\n\t\t\t\ttext: faker.lorem.sentences()\n\t\t\t});\n\n\t\t\tupdate.save(done);\n\t\t});\n\n\t\tit('should not throw an error', function (done) {\n\t\t\tupdate.share(function (err, res) {\n\t\t\t\tshould.not.exist(err);\n\t\t\t\tdone();\n\t\t\t});\n\t\t});\n\n\t\tit('should retrieve the shared update and map it to the current object', function (done) {\n\t\t\tupdate.share(function (err, res) {\n\t\t\t\tupdate.shared_now.should.be.true;\n\t\t\t\tupdate.status.should.equal('sent');\n\t\t\t\tupdate.service_link.should.not.be.empty;\n\t\t\t\tdone();\n\t\t\t});\n\t\t});\n\t});\n\n\tdescribe('Method: getInteractions', function () {\n\t\tbeforeEach(function (done) {\n\t\t\tupdate = new Update({\n\t\t\t\tprofile_ids: [app.profile_id],\n\t\t\t\ttext: faker.lorem.sentences()\n\t\t\t});\n\n\t\t\tupdate.save(done);\n\t\t});\n\n\t\tafterEach(function (done) {\n\t\t\tupdate.destroy(done);\n\t\t});\n\n\t\tit('should not throw an error', function (done) {\n\t\t\tupdate.getInteractions('retweet', {}, function (err, res) {\n\t\t\t\tshould.not.exist(err);\n\t\t\t\tdone();\n\t\t\t});\n\t\t});\n\t});\n\n\tdescribe('Method: moveToTop', function () {\n\t\tbeforeEach(function (done) {\n\t\t\tupdate = new Update({\n\t\t\t\tprofile_ids: [app.profile_id],\n\t\t\t\ttext: faker.lorem.sentences()\n\t\t\t});\n\n\t\t\tupdate.save(done);\n\t\t});\n\n\t\tafterEach(function (done) {\n\t\t\tupdate.destroy(done);\n\t\t});\n\n\t\tit('should not throw an error', function (done) {\n\t\t\tupdate.moveToTop(function (err, res) {\n\t\t\t\tshould.not.exist(err);\n\t\t\t\tdone();\n\t\t\t});\n\t\t});\n\t});\n});"
+  },
+  {
+    "kind": "testDescribe",
+    "static": true,
+    "variation": null,
+    "name": "describe70",
+    "testId": 70,
+    "memberof": "tests/modules/update.js",
+    "testDepth": 0,
+    "longname": "tests/modules/update.js~describe70",
+    "access": null,
+    "description": "Module: Update",
+    "lineNumber": 1
+  },
+  {
+    "kind": "testDescribe",
+    "static": true,
+    "variation": null,
+    "name": "describe71",
+    "testId": 71,
+    "memberof": "tests/modules/update.js~describe70",
+    "testDepth": 1,
+    "longname": "tests/modules/update.js~describe70.describe71",
+    "access": null,
+    "description": "Instantiation",
+    "lineNumber": 6
+  },
+  {
+    "kind": "testIt",
+    "static": true,
+    "variation": null,
+    "name": "it72",
+    "testId": 72,
+    "memberof": "tests/modules/update.js~describe70.describe71",
+    "testDepth": 2,
+    "longname": "tests/modules/update.js~describe70.describe71.it72",
+    "access": null,
+    "description": "should be able to be instantiated with an update ID",
+    "lineNumber": 12
+  },
+  {
+    "kind": "testIt",
+    "static": true,
+    "variation": null,
+    "name": "it73",
+    "testId": 73,
+    "memberof": "tests/modules/update.js~describe70.describe71",
+    "testDepth": 2,
+    "longname": "tests/modules/update.js~describe70.describe71.it73",
+    "access": null,
+    "description": "should be able to be instantiated with an update object",
+    "lineNumber": 32
+  },
+  {
+    "kind": "testDescribe",
+    "static": true,
+    "variation": null,
+    "name": "describe74",
+    "testId": 74,
+    "memberof": "tests/modules/update.js~describe70",
+    "testDepth": 1,
+    "longname": "tests/modules/update.js~describe70.describe74",
+    "access": null,
+    "description": "Method: save",
+    "lineNumber": 45
+  },
+  {
+    "kind": "testIt",
+    "static": true,
+    "variation": null,
+    "name": "it75",
+    "testId": 75,
+    "memberof": "tests/modules/update.js~describe70.describe74",
+    "testDepth": 2,
+    "longname": "tests/modules/update.js~describe70.describe74.it75",
+    "access": null,
+    "description": "should not throw an error",
+    "lineNumber": 59
+  },
+  {
+    "kind": "testIt",
+    "static": true,
+    "variation": null,
+    "name": "it76",
+    "testId": 76,
+    "memberof": "tests/modules/update.js~describe70.describe74",
+    "testDepth": 2,
+    "longname": "tests/modules/update.js~describe70.describe74.it76",
+    "access": null,
+    "description": "should assign the saved ID to the Update object",
+    "lineNumber": 67
+  },
+  {
+    "kind": "testDescribe",
+    "static": true,
+    "variation": null,
+    "name": "describe77",
+    "testId": 77,
+    "memberof": "tests/modules/update.js~describe70",
+    "testDepth": 1,
+    "longname": "tests/modules/update.js~describe70.describe77",
+    "access": null,
+    "description": "Method: destroy",
+    "lineNumber": 75
+  },
+  {
+    "kind": "testIt",
+    "static": true,
+    "variation": null,
+    "name": "it78",
+    "testId": 78,
+    "memberof": "tests/modules/update.js~describe70.describe77",
+    "testDepth": 2,
+    "longname": "tests/modules/update.js~describe70.describe77.it78",
+    "access": null,
+    "description": "should not throw an error",
+    "lineNumber": 84
+  },
+  {
+    "kind": "testIt",
+    "static": true,
+    "variation": null,
+    "name": "it79",
+    "testId": 79,
+    "memberof": "tests/modules/update.js~describe70.describe77",
+    "testDepth": 2,
+    "longname": "tests/modules/update.js~describe70.describe77.it79",
+    "access": null,
+    "description": "should add an attribute to flag the update as destroyed",
+    "lineNumber": 91
+  },
+  {
+    "kind": "testDescribe",
+    "static": true,
+    "variation": null,
+    "name": "describe80",
+    "testId": 80,
+    "memberof": "tests/modules/update.js~describe70",
+    "testDepth": 1,
+    "longname": "tests/modules/update.js~describe70.describe80",
+    "access": null,
+    "description": "Method: edit",
+    "lineNumber": 99
+  },
+  {
+    "kind": "testIt",
+    "static": true,
+    "variation": null,
+    "name": "it81",
+    "testId": 81,
+    "memberof": "tests/modules/update.js~describe70.describe80",
+    "testDepth": 2,
+    "longname": "tests/modules/update.js~describe70.describe80.it81",
+    "access": null,
+    "description": "should not throw an error",
+    "lineNumber": 117
+  },
+  {
+    "kind": "testIt",
+    "static": true,
+    "variation": null,
+    "name": "it82",
+    "testId": 82,
+    "memberof": "tests/modules/update.js~describe70.describe80",
+    "testDepth": 2,
+    "longname": "tests/modules/update.js~describe70.describe80.it82",
+    "access": null,
+    "description": "should change edit the update object to reflect the new values",
+    "lineNumber": 125
+  },
+  {
+    "kind": "testDescribe",
+    "static": true,
+    "variation": null,
+    "name": "describe83",
+    "testId": 83,
+    "memberof": "tests/modules/update.js~describe70",
+    "testDepth": 1,
+    "longname": "tests/modules/update.js~describe70.describe83",
+    "access": null,
+    "description": "Method: share",
+    "lineNumber": 133
+  },
+  {
+    "kind": "testIt",
+    "static": true,
+    "variation": null,
+    "name": "it84",
+    "testId": 84,
+    "memberof": "tests/modules/update.js~describe70.describe83",
+    "testDepth": 2,
+    "longname": "tests/modules/update.js~describe70.describe83.it84",
+    "access": null,
+    "description": "should not throw an error",
+    "lineNumber": 143
+  },
+  {
+    "kind": "testIt",
+    "static": true,
+    "variation": null,
+    "name": "it85",
+    "testId": 85,
+    "memberof": "tests/modules/update.js~describe70.describe83",
+    "testDepth": 2,
+    "longname": "tests/modules/update.js~describe70.describe83.it85",
+    "access": null,
+    "description": "should retrieve the shared update and map it to the current object",
+    "lineNumber": 150
+  },
+  {
+    "kind": "testDescribe",
+    "static": true,
+    "variation": null,
+    "name": "describe86",
+    "testId": 86,
+    "memberof": "tests/modules/update.js~describe70",
+    "testDepth": 1,
+    "longname": "tests/modules/update.js~describe70.describe86",
+    "access": null,
+    "description": "Method: getInteractions",
+    "lineNumber": 160
+  },
+  {
+    "kind": "testIt",
+    "static": true,
+    "variation": null,
+    "name": "it87",
+    "testId": 87,
+    "memberof": "tests/modules/update.js~describe70.describe86",
+    "testDepth": 2,
+    "longname": "tests/modules/update.js~describe70.describe86.it87",
+    "access": null,
+    "description": "should not throw an error",
+    "lineNumber": 174
+  },
+  {
+    "kind": "testDescribe",
+    "static": true,
+    "variation": null,
+    "name": "describe88",
+    "testId": 88,
+    "memberof": "tests/modules/update.js~describe70",
+    "testDepth": 1,
+    "longname": "tests/modules/update.js~describe70.describe88",
+    "access": null,
+    "description": "Method: moveToTop",
+    "lineNumber": 182
+  },
+  {
+    "kind": "testIt",
+    "static": true,
+    "variation": null,
+    "name": "it89",
+    "testId": 89,
+    "memberof": "tests/modules/update.js~describe70.describe88",
+    "testDepth": 2,
+    "longname": "tests/modules/update.js~describe70.describe88.it89",
+    "access": null,
+    "description": "should not throw an error",
+    "lineNumber": 196
+  }
+]

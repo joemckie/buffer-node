@@ -1,0 +1,12 @@
+{
+	"source": "./package/src",
+	"destination": ".",
+	"coverage": false,
+	"title": "Buffer for Node Documentation",
+	"package": "package/package.json",
+	"test": {
+		"type": "mocha",
+		"source": "./package/tests",
+		"includes": ["(.*).js$"]
+	}
+}
