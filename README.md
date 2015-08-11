@@ -66,7 +66,7 @@ This package is released under the [**MIT Licence**](http://opensource.org/licen
 
 ## Contributing:
 
-Getting started is easy with the [Vagrant](http://vagrantup.com)  VM. Simply run `vagrant up` and then `vagrant ssh`.
+~~Getting started is easy with the [Vagrant](http://vagrantup.com)  VM. Simply run `vagrant up` and then `vagrant ssh`.~~ There is currently a bug in the Chef provisioning preventing the Vagrant instance from starting. Looking into it and will apply a fix ASAP. For now, please ignore this step.
 
 Please follow the following guidelines when writing new code:
 
