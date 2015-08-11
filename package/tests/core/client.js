@@ -6,27 +6,7 @@ let client,
     server = express();
 
 before(function (done) {
-	this.timeout(10000);
-
-	server.listen(3000);
-
-	var temp_client = new BufferClient({
-		access_token: app.access_token,
-		client_id: app.client_id,
-		client_secret: app.client_secret,
-		redirect_url: app.redirect_url
-	}, function (err, res) {
-		temp_client.getProfiles(function (err, res) {
-			var profile = temp_client.getProfile(app.profile_id);
-			profile.getPendingUpdates(function (err, res) {
-				async.forEachOf(profile.pending_updates, function (update, key, next) {
-					update.destroy(next);
-				}, function () {
-					done();
-				});
-			});
-		});
-	});
+	server.listen(3000, done);
 });
 
 after(function (done) {
@@ -54,7 +34,18 @@ describe('Core Suite', function () {
 				}, function (err, res) {
 					client._authenticated.should.be.true;
 					client._access_token.should.not.equal(req.query.code);
-					done();
+
+					// Clear out any previously queued updates before running tests
+					client.getProfiles(function (err, res) {
+						var profile = client.getProfile(app.profile_id);
+						profile.getPendingUpdates(function (err, res) {
+							async.forEachOf(profile.pending_updates, function (update, key, next) {
+								update.destroy(next);
+							}, function () {
+								done();
+							});
+						});
+					});
 				});
 			});
 

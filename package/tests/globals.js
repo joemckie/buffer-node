@@ -8,7 +8,6 @@ if (!global._babelPolyfill) {
 }
 
 global.app = {
-	access_token: '1/6a79bce17c418186cc1ccd481523bcae',
 	client_id: '55c663c0c6eeaacd2ea217c2',
 	client_secret: '7c8524ce6b74bdde1a7112c7005436b9',
 	profile_id: '55c2516e8e6e335428e74319',
