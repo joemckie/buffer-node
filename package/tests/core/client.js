@@ -147,12 +147,6 @@ describe('Core Suite', function () {
 					done();
 				});
 			});
-			it('should use HTTPS', function (done) {
-				client.get('info/configuration.json', function (err, res, response) {
-					should.exist(response.req.agent.sockets[`${client._hostname}:443`]);
-					done();
-				});
-			});
 			it('should use the GET method', function (done) {
 				client.get('info/configuration.json', function (err, res, response) {
 					response.req.method.should.equal('GET');
@@ -168,12 +162,6 @@ describe('Core Suite', function () {
 			it('should not throw an error', function (done) {
 				client.post(`profiles/${app.profile_id}/updates/shuffle.json`, function (err, res, response) {
 					should.not.exist(err);
-					done();
-				});
-			});
-			it('should use HTTPS', function (done) {
-				client.post(`profiles/${app.profile_id}/updates/shuffle.json`, function (err, res, response) {
-					should.exist(response.req.agent.sockets[`${client._hostname}:443`]);
 					done();
 				});
 			});
