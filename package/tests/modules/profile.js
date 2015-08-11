@@ -74,7 +74,7 @@ describe('Module: Profile', function () {
 		});
 
 		after(function (done) {
-			async.each(updates, function (update, next) {
+			async.eachSeries(updates, function (update, next) {
 				update.destroy(next);
 			}, done);
 		});
@@ -214,7 +214,7 @@ describe('Module: Profile', function () {
 
 		afterEach(function (done) {
 			this.timeout(10000);
-			async.each(updates, function (update, next) {
+			async.eachSeries(updates, function (update, next) {
 				update.destroy(next);
 			}, done);
 		});
@@ -254,7 +254,7 @@ describe('Module: Profile', function () {
 		});
 
 		afterEach(function (done) {
-			async.each(updates, function (update, next) {
+			async.eachSeries(updates, function (update, next) {
 				update.destroy(next);
 			}, done);
 		});
