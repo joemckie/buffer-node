@@ -179,7 +179,7 @@ export default class BufferClient {
 	 *   // Do something
 	 * });
 	 */
-	_getConfiguration (callback) {
+	getConfiguration (callback) {
 		this.get('info/configuration.json', callback);
 	}
 
